@@ -74,7 +74,7 @@ for target in $targets; do
                 Linux) library=libcss_parser_napi.so ;;
                 *) echo 'the N-API build supports macOS and Linux.' >&2; exit 1 ;;
             esac
-            rustup run stable cargo build --release -p css-parser-napi
+            rustup run stable cargo build --workspace --release -p css-parser-napi
             assemble napi
             # the N-API addon has no browser entry point
             rm -f extensions/css-parser-napi/dist/web.js
@@ -88,7 +88,7 @@ for target in $targets; do
                 echo 'wasm-opt is missing: run npm install' >&2
                 exit 1
             fi
-            rustup run stable cargo build --release -p css-parser-wasm --target wasm32-unknown-unknown
+            rustup run stable cargo build --workspace --release -p css-parser-wasm --target wasm32-unknown-unknown
             assemble wasm
             "$wasm_opt" -O3 target/wasm32-unknown-unknown/release/css_parser_wasm.wasm -o extensions/css-parser-wasm/dist/css_parser.wasm
             ;;

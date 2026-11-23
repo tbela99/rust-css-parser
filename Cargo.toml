@@ -1,0 +1,25 @@
+# the workspace: the library (crates/css-parser) and its javascript extensions, the N-API addon
+# (extensions/css-parser-napi) and the WebAssembly module (extensions/css-parser-wasm)
+[workspace]
+resolver = "2"
+members = [
+    "crates/css-parser",
+    "extensions/css-parser-napi",
+    "extensions/css-parser-wasm",
+]
+# the data generators have their own workspace
+exclude = ["scripts"]
+
+# the version of package.json (build-bindings.sh keeps it in sync)
+[workspace.package]
+version = "2.2.1"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+rust-css-parser = { path = "crates/css-parser" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

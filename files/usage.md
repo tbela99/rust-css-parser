@@ -1,0 +1,487 @@
+---
+title: Usage
+group: Documents
+category: Guides
+---
+
+## Main function differences
+The library offers two variants—synchronous and asynchronous functions—for parsing, analyzing, and transforming CSS.
+
+The **synchronous API** is marginally faster than the asynchronous API, but it comes with some limitations. See the [details below](#difference-between-sync-and-async-apis).
+
+| Function          | Parses CSS | Async | CSS Output |
+| ----------------- | ---------- | ----- | ---------- |
+| `parse()`         | ✅          | ✅     | ❌          |
+| `parseSync()`     | ✅          | ❌     | ❌          |
+| `transform()`     | ✅          | ✅     | ✅          |
+| `transformSync()` | ✅          | ❌     | ✅          |
+| `render()`        | ❌          | ❌     | ✅          |
+
+> **Note:** `parse()` and `parseSync()` only produce the AST and do not generate CSS output.
+
+By contrast, `transform()` and `transformSync()` parse the CSS **and** generate the transformed CSS text. This is useful when you want the rendered CSS directly without performing a separate AST rendering step.
+
+### Usage
+
+```ts
+import {parse, render} from '@tbela99/rust-css-parser-napi';
+
+const css = `...`;
+
+const result = await parse(css); // or parse({input: css});
+console.debug(result.ast); // the id of the stylesheet node in result.arena
+console.debug(result.arena.toObject(result.ast)); // object view of the ast, printed as a plain object
+console.debug(JSON.stringify(result.arena.toObject(result.ast))); // the ast as json
+console.debug(result.stats);
+
+const rendered = render(result.arena, result.ast);
+console.debug(rendered.code);
+console.debug(result.stats);
+````
+
+The ast nodes are allocated in an arena (`result.arena`) and referenced by their node id. See [Ast Manipulation](./ast.md).
+
+or
+
+```ts
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `...`;
+
+const result = await transform(css); // or transform({input: css});
+console.debug(result.ast); // the id of the stylesheet node in result.arena
+console.debug(result.code);
+console.debug(result.stats);
+````
+## Parsing
+
+Parsing converts input CSS into an **AST (Abstract Syntax Tree)**.
+
+You can parse CSS in multiple ways:
+
+- `parse()` or `parseSync()` – Parse CSS and returns an AST.
+- `transform()` or `transformSync()` – Parse and generate CSS as part of the transformation process.
+
+For more information about the available parsing options, see the TypeScript documentation for [`ParserOptions`](https://tbela99.github.io/css-parser/docs/interfaces/node.ParserOptions.html).
+
+### Usage
+
+```ts
+parse(css, parserOptions = {})
+parse(parserOptions = {input: css})
+parse(parserOptions = {file: url_or_path})
+```
+
+### Example
+
+````javascript
+import {parse} from '@tbela99/rust-css-parser-napi';
+
+const {ast, errors, stats} = await parse(css);
+````
+
+### Parsing files
+
+The parse() and transform() functions can parse files.
+They both accept a file url or path as first argument.
+
+```ts
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `https://docs.deno.com/styles.css`;
+
+let result = await transform({file: css});
+console.debug(result.code);
+
+// load file as readable stream
+result = await transform({file: css, asStream: true});
+console.debug(result.code);
+```
+
+### Parsing from a Readable Stream
+
+The parse() and transform() functions accept a string or readable stream as first argument.
+
+```ts
+import {parse} from '@tbela99/rust-css-parser-napi';
+import {Readable} from "node:stream";
+
+// usage: node index.ts < styles.css or cat styles.css | node index.ts
+
+const readableStream = Readable.toWeb(process.stdin);
+const result = await parse(readableStream, {beautify: true}); // or  parse({input: readableStream, beautify: true})
+
+console.log(result.arena.toObject(result.ast));
+```
+
+A response body object can also be passed to parse() or transform() functions. 
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const response = await fetch(`https://docs.deno.com/styles.css`);
+const result = await transform(response.body); // or parse(response.body)
+console.debug(result.code);
+
+```
+
+## Rendering AST
+
+For more information about the available transform options, see the TypeScript documentation for [`RenderOptions`](https://tbela99.github.io/css-parser/docs/interfaces/node.RenderOptions.html).
+
+### Usage
+
+```javascript
+render(arena, ast, RenderOptions = {});
+```
+
+### Examples
+
+Rendering ast
+
+```javascript
+import {parse, render} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+@media screen and (min-width: 40em) {
+    .featurette-heading {
+        font-size: 50px;
+    }
+    .a {
+        color: red;
+        width: 3px;
+    }
+}
+`;
+
+const result = await parse(css, options);
+const arena = result.arena;
+
+// @media -> .a -> width
+const declaration = arena.getChildAt(arena.getChildAt(arena.getChildAt(result.ast, 0), 1), 1);
+
+// print declaration without parents
+console.error(render(arena, declaration, {withParents: false}));
+// -> width:3px
+
+// print declaration with parents
+console.debug(render(arena, declaration, {withParents: true}));
+// -> @media screen and (min-width:40em){.a{width:3px}}
+
+```
+
+### Render result
+
+`render()`, `transform()` and `transformSync()` return a [`RenderResult`](https://tbela99.github.io/css-parser/docs/classes/node.RenderResult.html) (a
+[`TransformResult`](https://tbela99.github.io/css-parser/docs/classes/node.TransformResult.html) for the transform functions). The generated CSS is stored as
+UTF-8 bytes in `result.write` (a `Uint8Array`). `result.code` decodes the bytes the first time it is read, the string
+is kept for the next reads.
+
+When the result is written to a file or sent over the network, use the bytes directly: no string is created.
+
+```javascript
+import {transform} from '@tbela99/rust-css-parser-napi';
+import {writeFile} from 'node:fs/promises';
+
+const result = await transform(css);
+
+// bytes, no string conversion
+await writeFile('styles.min.css', result.write);
+
+// string, decoded once
+console.debug(result.code);
+```
+
+`result.stats.bytesOut` is the length of the generated CSS (`result.code.length`), it is computed without decoding
+the bytes.
+
+The render buffer is allocated once, before rendering, from the length of the parsed CSS (`arena.inputLengths[ast]`,
+imported files included) plus a small padding: the minified or beautified output is usually not larger than the input.
+The buffer grows when the output is larger (beautifying minified CSS for instance). `result.write` contains only the
+generated CSS.
+
+### Pretty printing
+By default, CSS output is minified. That behavior can be changed by passing the option `{beautify:true}`.
+
+```ts
+
+const result = await transform(css, {beautify: true}); 
+// or render(arena, ast, {beautify: true})
+
+console.log(result.code);
+
+```
+
+### Preserving license comments
+
+By default all comments are removed from the output. They can be preserved by passing the `{removeComments:false}` option,
+
+If you only want to preserve license comments, and remove other comments, you can pass `{preserveLicense:true}` instead.
+
+```ts
+
+const css = `/*!
+ * Bootstrap  v5.3.3 (https://getbootstrap.com/)
+ * Copyright 2011-2024 The Bootstrap Authors
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/main/LICENSE)
+ */
+[data-bs-theme=dark] {
+ color-scheme: dark;
+ 
+ ...`;
+
+const result = await transform(css, {preserveLicense: true}); 
+```
+
+### Converting colors
+
+Color conversion is controlled by the `convertColor` option. Colors are converted to the HEX format by default.
+That behavior can be changed by passing the desired color type to the convertColor option:
+
+- ColorType.HEX
+- ColorType.RGB or ColorType.RGBA
+- ColorType.HSL or ColorType.HSLA
+- ColorType.HWB or ColorType.HWBA
+- ColorType.CMYK or ColorType.DEVICE_CMYK
+- ColorType.SRGB
+- ColorType.SRGB_LINEAR
+- ColorType.DISPLAY_P3
+- ColorType.DISPLAY_P3_LINEAR
+- ColorType.PROPHOTO_RGB
+- ColorType.A98_RGB
+- ColorType.REC2020
+- ColorType.XYZ or ColorType.XYZ_D65
+- ColorType.XYZ_D50
+- ColorType.LAB
+- ColorType.LCH
+- ColorType.OKLAB
+- ColorType.OKLCH
+
+```ts
+import {transform, ColorType} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+.color-map {
+
+color: lab(from #123456 calc(l + 10) a b);
+background-color: lab(from hsl(180 100% 50%) calc(l - 10) a b);
+}
+`;
+const result = await transform(css, {
+    beautify: true,
+    convertColor: ColorType.RGB,
+    computeCalcExpression: true
+});
+
+console.log(result.code);
+
+// .color-map {
+//     color: rgb(45 74 111);
+//     background-color: rgb(0 226 226)
+// }
+```
+
+## Transform
+
+The transform function parses and renders CSS. For more information about the available transform options, see the TypeScript documentation for [`TransformOptions`](https://tbela99.github.io/css-parser/docs/interfaces/node.TransformOptions.html).
+
+### TransformOptions
+
+Include ParserOptions and RenderOptions
+
+### Example
+
+```javascript
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const {ast, code, map, errors, stats} = await transform(css, {minify: true, resolveImport: true, cwd: 'files/css'});
+```
+
+### Example
+
+Read from stdin with node using readable stream
+
+```typescript
+import {transform} from '@tbela99/rust-css-parser-napi';
+import {Readable} from "node:stream";
+import type {TransformResult} from '@tbela99/rust-css-parser-napi';
+
+const readableStream: ReadableStream<string> = Readable.toWeb(process.stdin) as ReadableStream<string>;
+const result: TransformResult = await transform(readableStream, {beautify: true});
+
+console.log(result.code);
+```
+
+### Expand CSS nesting rules
+
+Convert css nesting rules to legacy syntax.
+
+```typescript
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+table.colortable {
+    & td {
+        text-align: center;
+
+        &.c {
+            text-transform: uppercase
+        }
+
+        &:first-child, &:first-child + td {
+            border: 1px solid #000
+        }
+    }
+
+    & th {
+        text-align: center;
+        background: #000;
+        color: #fff
+    }
+}`;
+
+result = await transform(css, {
+
+    beautify: true,
+    expandNestingRules: true
+    }
+
+});
+
+console.log(result.code);
+```
+
+output
+
+```css
+
+table.colortable td {
+    text-align: center;
+}
+
+table.colortable td.c {
+    text-transform: uppercase;
+}
+
+table.colortable td:first-child, table.colortable td:first-child + td {
+    border: 1px solid black;
+}
+
+table.colortable th {
+    text-align: center;
+    background: black;
+    color: white;
+}
+```
+
+### CSS if() function expansion
+
+Convert CSS if() to legacy syntax.
+
+```typescript
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+button {
+	background: linear-gradient(
+		if(media(min-width: 768px): to right; else: to bottom),
+		if(style(--dark-mode): #333; else: #fff),
+		if(style(--dark-mode): #000; else: #ccc)
+	);
+}`;
+
+result = await transform(css, {
+
+    beautify: true,
+    expandIfSyntax: true
+    }
+});
+
+console.log(result.code);
+```
+
+output
+
+```css
+button {
+ background: linear-gradient(to bottom,#fff,#ccc);
+ @media (min-width:768px) {
+  background: linear-gradient(to right,#fff,#ccc);
+  @container style(--dark-mode) {
+   background: linear-gradient(to right,#333,#000)
+  }
+ }
+ @container style(--dark-mode) {
+  background: linear-gradient(to bottom,#333,#000)
+ }
+}
+```
+
+## Difference Between Sync and Async APIs
+
+### Parsing features comparison
+
+| Feature                 | parse() | transform() | transformSync() | ParseSync() |
+| ----------------------- | ------- | ----------- | --------------- | ----------- |
+| Parse from stream       | ✅       | ✅           | ❌               | ❌           |
+| Parse from file         | ✅       | ✅           | ❌               | ❌           |
+| Flatten @import at-rule | ✅       | ✅           | ❌               | ❌           |
+| load css files          | ✅       | ✅           | ❌               | ❌           |
+
+### CSS Module features comparison
+
+| Feature                                                              | parse() | transform() | transformSync() | ParseSync() |
+| -------------------------------------------------------------------- | ------- | ----------- | --------------- | ----------- |
+| Algorithms supported by `pattern`: <br> sha1, sha256, sha384, sha512 | ✅       | ✅           | ❌               | ❌           |
+| CSS `composes` from file                                             | ✅       | ✅           | ❌               | ❌           |
+| import CSS variables from file                                       | ✅       | ✅           | ❌               | ❌           |
+
+## Minification performance vs execution speed
+
+`css-parser` is designed for maximum minification performance, but the optimal configuration depends on what matters most for your workload.
+ 
+The parser provides settings that let you choose the balance between minification performance and execution speed:
+
+- Minification performance: prioritize the quality and efficiency of the minification process, allowing the parser to perform additional work when generating the minimized output.
+
+- Execution speed: minimize the amount of work performed during parsing and minification to achieve the fastest possible execution time.
+
+However, the available settings allow you to shift the balance toward execution speed when minimizing runtime is more important than performing every available minification optimization.
+
+The example below demonstrates a balanced configuration that improves execution speed by disabling advanced minification features.
+
+```ts
+
+import {transformSync} from "@tbela99/rust-css-parser-napi";
+
+const css = `...`;
+
+const result = transformSync({
+                  input: css,
+                  minify: false,
+                  beautify: false,
+                  removeEmpty: true,
+                  removeComments: true,
+                  convertColor: true,
+                  minifyValues: true,
+                });
+
+console.debug(result.code);
+console.debug(result.stats);
+```
+
+Performance vs execution speed comparison
+
+
+| File:  tailwind.css   | Speed optimization | Minification optimization |
+| --------------------- | ------------------ | ------------------------- |
+| Size: 2,380,419 bytes | 1,888,460 bytes    | 1,624,148 bytes           |
+| Time                  | 109.07 ms          | 193.85 ms                 |
+| Size reduction        | -20.7%             | -31.8%                    |
+
+
+------
+[← Getting started](./getting-started.md) | [Architecture →](./architecture.md) 
+

@@ -1,0 +1,56 @@
+---
+title: Guide
+group: Documents
+category: Guides
+children:
+    - ./getting-started.md
+    - ./usage.md
+    - ./architecture.md
+    - ./validation.md
+    - ./css-module.md
+    - ./minification.md
+    - ./transform.md
+    - ./sourcemap.md
+    - ./plugins.md
+    - ./syntax-lowering.md
+    - ./prefix-removal.md
+    - ./ast.md
+    - ./arena.md
+    - ./utilities.md
+    - ./migration.md
+    - ./bindings.md
+    - ./rust.md
+---
+
+## Contents
+
+- [Getting started](./getting-started.md)
+- [Usage](./usage.md)
+- [Architecture](./architecture.md)
+- [Validation](./validation.md)
+- [CSS Modules](./css-module.md)
+- [Minification](./minification.md)
+- [Custom Transform](./transform.md)
+- [Sourcemap](./sourcemap.md)
+- [Plugins API](./plugins.md)
+- [Syntax Lowering](./syntax-lowering.md)
+- [Prefix Removal](./prefix-removal.md)
+- [Ast Manipulation](./ast.md)
+- [Arena Memory](./arena.md)
+- [Utility Functions](./utilities.md)
+- [Migration to 2.0](./migration.md)
+- [Bindings: N-API and WebAssembly](./bindings.md)
+- [Rust API](./rust.md)
+
+## API reference
+
+- [Rust crate](./api/rust_css_parser/index.html)
+- JavaScript: the API of the TypeScript library, [Node](https://tbela99.github.io/css-parser/docs/modules/node.html) and [Web](https://tbela99.github.io/css-parser/docs/modules/web.html)
+
+## Misc
+
+- [Playground](https://tbela99.github.io/css-parser/playground/)
+- [Benchmark](https://tbela99.github.io/css-parser/benchmark/index.html)
+
+------
+[Getting Started →](./getting-started.md)

@@ -1,0 +1,16 @@
+[package]
+name = "css-parser-napi"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "N-API addon of rust-css-parser"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+# the backend is tested by the specs (npm run test:napi)
+test = false
+doctest = false
+
+[dependencies]
+rust-css-parser.workspace = true

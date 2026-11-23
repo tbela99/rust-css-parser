@@ -1,0 +1,19 @@
+/target/
+/extensions/*/dist/
+/node_modules/
+/.legacy/
+/scripts/target/
+/PORTING
+/SYNTAX-CHANGELOG.md
+/package-lock.json
+/Cargo.lock
+/bun.lock
+/.legacy
+/.idea
+/target
+/node_modules
+/extensions/*/LICENSE.md
+# the N-API addon is built on the client machine (extensions/css-parser-napi/install.js)
+*.node
+# the rust sources of the N-API package, staged by build-bindings.sh
+/extensions/css-parser-napi/rust/

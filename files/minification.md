@@ -1,0 +1,765 @@
+---
+title: Minification
+group: Documents
+category: Guides
+---
+
+## Minification
+
+The minification process is enabled by default. The minification process is applied to the ast as well as the generated CSS code.
+It can be disabled by setting `{minify:false}` in the options.
+
+Flags are used to control specific minification features.
+
+### Keyframes
+
+Keyframes rules are minified.
+
+```ts
+
+import {transform, TransformOptions} from "@tbela99/rust-css-parser-napi";
+
+const options: TransformOptions = {
+
+    beautify: true,
+};
+
+const css = `@keyframes slide-in {
+  from {
+    transform: translateX(0%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+    `;
+
+const result = await transform(css, options);
+
+console.debug(result.code);
+
+```
+
+Output:
+```css
+@keyframes slide-in {
+    0% {
+        transform: translateX(0)
+    }
+    to {
+        transform: translateX(100%)
+    }
+}
+```
+
+### CSS variables inlining
+
+This feature is disabled by default.
+It is enabled using `{inlineCssVariables: true}`.
+The CSS variables must be defined only once, and they must be defined in 'html' or ':root' selectors.
+
+```ts
+
+import {transform, ColorType} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+:root {
+--color: green;
+}
+._19_u :focus {
+    color:  hsl(from var(--color) calc(h * 2) s l);
+}
+`;
+const result = await transform(css, {
+    beautify: true,
+    convertColor: true,
+    inlineCssVariables: true,
+    computeCalcExpression: false
+});
+
+console.log(result.code);
+
+```
+
+Output:
+```css
+._19_u :focus {
+ color: navy
+}
+```
+
+### Mixins
+
+A mixin applied without arguments is referenced by its name: `@apply --mixin()` is minified to `@apply --mixin`.
+The mixins are evaluated using `{evaluateMixins: true}`, see [syntax lowering](./syntax-lowering.md).
+
+### Math functions
+
+This feature is enabled by default. It is disabled using `{computeCalcExpression: false}`.
+Math functions such as `calc()` are evaluated when enabled using `{computeCalcExpression: true}`.
+The math functions of a mixin body are not evaluated: they are evaluated when the mixin is applied, see `{evaluateMixins: true}`.
+
+```ts
+
+import {transform, ColorType} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+:root {
+  --size-0: 100px;
+  --size-1: hypot(var(--size-0));
+  --size-2: hypot(var(--size-0), var(--size-0));
+  --size-3: hypot(
+    calc(var(--size-0) * 1.5),
+    calc(var(--size-0) * 2)
+  );
+}
+.one {
+  width: var(--size-1);
+  height: var(--size-1);
+}
+.two {
+  width: var(--size-2);
+  height: var(--size-2);
+}
+.three {
+  width: var(--size-3);
+  height: var(--size-3);
+}
+`;
+const result = await transform(css, {
+    beautify: true,
+    inlineCssVariables: true,
+    computeCalcExpression: true
+});
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+:root {
+ /* --size-0: 100px */
+ /* --size-1: hypot(var(--size-0)) */
+ /* --size-2: hypot(var(--size-0),var(--size-0)) */
+ /* --size-3: hypot(calc(var(--size-0)*1.5),calc(var(--size-0)*2)) */
+}
+.one {
+ width: 100px;
+ height: 100px
+}
+.two {
+ width: 141px;
+ height: 141px
+}
+.three {
+ width: 250px;
+ height: 250px
+}
+```
+### CSS Gradient functions
+
+CSS gradients are minified.
+
+```ts
+
+import {transform, ColorType} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.s {
+      background: linear-gradient(to bottom, white, black);
+  }
+`;
+const result = await transform(css, {
+    beautify: true
+});
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.s {
+ background: linear-gradient(#fff,#000)
+}
+```
+
+### Color minification
+
+CSS colors level 4&5 are fully supported. The library will convert between all supported color formats.
+It can also compute relative colors and color-mix() functions.
+
+```ts
+
+import {transform, ColorType, TransformOptions} from '@tbela99/rust-css-parser-napi';
+
+const options: TransformOptions = {
+
+    beautify: true,
+};
+
+const css = `
+
+.color1 {
+    --color1: color(from green srgb r g b / 0.5);
+    --color2: color(from #123456 xyz calc(x + 0.75) y calc(z - 0.35));
+    --color3: 
+color(display-p3 1 0.5 0);
+--color4: color(display-p3 1 0.5 0 / .5);
+--color5: color-mix(in lab, plum 60%, #123456 50%);
+--color6: color-mix(in lch longer hue, hsl(200deg 50% 80%), coral);
+}
+    `;
+
+const result = await transform(css, options);
+
+console.debug(result.code);
+
+```
+
+Output:
+
+```css
+.color1 {
+ --color1: #00800080;
+ --color2: red;
+ --color3: #ff7600;
+ --color4: #ff760080;
+ --color5: #816d9d;
+ --color6: #88ca86
+}
+```
+
+The color result color format can be specified using the `convertColor` option.
+
+```ts
+
+import {transform, ColorType, TransformOptions} from '@tbela99/rust-css-parser-napi';
+
+const options: TransformOptions = {
+
+    beautify: true,
+        convertColor: ColorType.OKLCH
+};
+
+const css = `
+
+.color1 {
+    --color1: color(from green srgb r g b / 0.5);
+    --color2: color(from #123456 xyz calc(x + 0.75) y calc(z - 0.35));
+    --color3: 
+color(display-p3 1 0.5 0);
+--color4: color(display-p3 1 0.5 0 / .5);
+--color5: color-mix(in lab, plum 60%, #123456 50%);
+--color6: color-mix(in lch longer hue, hsl(200deg 50% 80%), coral);
+}
+    `;
+
+const result = await transform(css, options);
+
+console.debug(result.code);
+
+```
+
+Output:
+
+```css
+.color1 {
+    --color1: oklch(.519752 .176858 142.495/50%);
+    --color2: oklch(.473385 .954378 47.1833);
+    --color3: oklch(.742513 .219804 51.1597);
+    --color4: oklch(.742513 .219804 51.1597/50%);
+    --color5: oklch(.572282 .075648 303.425);
+    --color6: oklch(.77643 .115501 143.964)
+}
+```
+
+### CSS transform functions
+
+This feature is enabled by default. It computes CSS transform functions and preserve the shortest value. It is disabled using `{computeTransform: false}`.
+
+```ts
+
+import {transform, ColorType} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.now {
+    transform: scaleX(1) scaleY(1) ;
+}
+
+  .now1 {
+    transform: scaleX(1.5)  scaleY(2);
+}
+`;
+const result = await transform(css);
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.now{transform:none}.now1{transform:scale(1.5,2)}
+```
+
+### CSS values
+
+Dimensions and numeric values are minified.
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.now {
+    width: 0px;
+}
+`;
+const result = await transform(css);
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.now{width:0}
+```
+
+### Redundant declarations
+
+By default, only the last declaration is preserved.
+To preserve all declarations, pass the option `{removeDuplicateDeclarations: false}`.
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.table {
+
+    width: 100%;
+    width: calc(100% + 40px);
+    margin-left: 20px;
+    margin-left: min(100% , 20px)
+}
+    
+`;
+const result = await transform(css, {
+
+            beautify: true,
+            validation: true,
+            removeDuplicateDeclarations: false
+        }
+);
+
+console.log(result.code);
+
+```
+Output:
+
+```css
+.table {
+ width: 100%;
+ width: calc(100% + 40px);
+ margin-left: 20px;
+ margin-left: min(100%,20px)
+}
+```
+
+To preserve only specific declarations, pass an array of declaration names.
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.table {
+
+    width: 100%;
+    width: calc(100% + 40px);
+    margin-left: 20px;
+    margin-left: min(100% , 20px)
+}
+    
+`;
+const result = await transform(css, {
+
+    beautify: true,
+    validation: true,
+    removeDuplicateDeclarations: ['width']
+}
+);
+
+console.log(result.code);
+
+```
+Output:
+
+```css
+.table {
+ width: 100%;
+ width: calc(100% + 40px);
+ margin-left: min(100%,20px)
+}
+```
+
+### Calc() resolution
+
+Calc() functions are evaluated.
+
+```javascript
+
+import {parse, render} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+a {
+
+width: calc(100px * log(625, 5));
+}
+.foo-bar {
+    width: calc(100px * 2);
+    height: calc(((75.37% - 63.5px) - 900px) + (2 * 100px));
+    max-width: calc(3.5rem + calc(var(--bs-border-width) * 2));
+}
+`;
+
+const prettyPrint = await parse(css).then(result => render(result.ast, {minify: false}).code);
+
+```
+
+result:
+
+```css
+a {
+    width: 400px;
+}
+
+.foo-bar {
+    width: 200px;
+    height: calc(75.37% - 763.5px);
+    max-width: calc(3.5rem + var(--bs-border-width) * 2)
+}
+```
+
+### CSS variable inlining and relative color
+
+This feature is disabled by default.
+
+```javascript
+
+import {parse, render} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+html { --bluegreen:  oklab(54.3% -22.5% -5%); }
+.overlay {
+  background:  oklab(from var(--bluegreen) calc(1.0 - l) calc(a * 0.8) b);
+}
+`
+
+const prettyPrint = await parse(css, {inlineCssVariables: true}).then(result => render(result.ast, {minify: false}).code);
+
+```
+
+result
+
+```css
+.overlay {
+    background: #0c6464
+}
+
+```
+
+### Merging adjacent rules
+
+Adjacent rules with common declarations and at-rules with the same name and prelude are merged.
+
+```ts
+
+const options: TransformOptions = {
+
+    beautify: true,
+    validation: true,
+    removeDuplicateDeclarations: ['background', 'width']
+};
+
+const css = `
+
+@media tv {
+
+  .rule {
+    
+    width: 100%;
+    width: calc(100% + 40px);
+    margin-left: min(100% , 20px)
+  }
+}
+    
+@media tv {
+
+  .rule {
+    
+    margin-left: min(100% , 20px)
+  }
+}
+
+    #converted-text { color: color(from green display-p3 r calc(g + .2) b ); 
+      background: -o-linear-gradient(top, white, black);
+      background: -webkit-gradient(linear, left top, left bottom, from(white), to(black));
+      background: linear-gradient(to bottom, white, black);}
+    `;
+
+const result = await transform(css, options);
+
+console.debug(result.code);
+
+```
+
+Output:
+
+```css
+@media tv {
+ .rule {
+  width: 100%;
+  width: calc(100% + 40px);
+  margin-left: min(100%,20px)
+ }
+}
+#converted-text {
+ color: #00b400;
+ background: -o-linear-gradient(top,#fff,#000);
+ background: -webkit-gradient(linear,left top,left bottom,from(#fff),to(#000));
+ background: linear-gradient(to bottom,#fff,#000)
+}
+```
+
+### Conditional wrapping or unwrapping selectors using :is()
+
+This feature is enabled by default. It is disabled by turning off minification using `{minify: false}`.
+It will attempt to wrap or unwrap rules using :is() and use the shortest possible selector.
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.table {
+    border-collapse: collapse;
+    width: 100%;
+}
+    
+.table td,  .table  th,  .table tr {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+`;
+const result = await transform(css, {
+
+            beautify: true,
+            nestingRules: false
+        }
+);
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.table {
+    border-collapse: collapse;
+    width: 100%
+}
+.table:is(td,th,tr) {
+    border: 1px solid #ddd;
+    padding: 8px
+}
+```
+
+### CSS nesting
+
+This feature is enabled by default. it is disabled using `{nestingRules: false}`.
+When enabled, css rules are automatically nested whenever possible.
+
+```ts
+
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.table {
+    border-collapse: collapse;
+    width: 100%;
+}
+    
+.table td, .table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+    
+.table tr:nth-child(even){background-color: #f2f2f2;}
+    
+.table tr:hover {background-color: #ddd;}
+    
+.table th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    background-color: #4CAF50;
+    color: white;
+}
+`;
+const result = await transform(css, {
+
+            beautify: true,
+    convertColor: ColorType.OKLCH
+        }
+);
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.table {
+    border-collapse: collapse;
+    width: 100%;
+    & td,& th {
+        border: 1px solid oklch(.897547 0 0);
+        padding: 8px
+    }
+    & tr {
+        &:nth-child(2n) {
+            background-color: oklch(.961151 0 0)
+        }
+        &:hover {
+            background-color: oklch(.897547 0 0)
+        }
+    }
+    & th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: oklch(.673098 .162442 144.208);
+        color: oklch(1 0 0)
+    }
+}
+```
+
+### Shorthands
+
+Shorthand properties are computed and default values are removed.
+
+```ts
+import {transform} from '@tbela99/rust-css-parser-napi';
+
+const css = `
+
+.table {
+
+    margin-left: 25px;
+    margin-top: 20px;
+    margin-right: 25px;
+    margin-bottom: 15px;
+}
+    
+`;
+const result = await transform(css, {
+
+            beautify: true,
+        }
+);
+
+console.log(result.code);
+
+```
+
+Output:
+
+```css
+.table {
+ margin: 20px 25px 15px
+}
+```
+
+### Computed shorthands properties
+
+Below is the list of computed shorthands properties. Minification is fully supported for the properties with a checkmark.
+
+- [ ] ~all~
+- [x] animation
+- [x] background
+- [x] border
+- [ ] border-block-end
+- [ ] border-block-start
+- [x] border-bottom
+- [x] border-color
+- [ ] border-image
+- [ ] border-inline-end
+- [ ] border-inline-start
+- [x] border-left
+- [x] border-radius
+- [x] border-right
+- [x] border-style
+- [x] border-top
+- [x] border-width
+- [x] column-rule
+- [x] columns
+- [x] container
+- [ ] contain-intrinsic-size
+- [x] flex
+- [x] flex-flow
+- [x] font
+- [ ] font-synthesis
+- [ ] font-variant
+- [x] gap
+- [ ] grid
+- [x] grid-area
+- [x] grid-column
+- [x] grid-row
+- [x] grid-template
+- [x] inset
+- [x] list-style
+- [x] margin
+- [x] margin-block
+- [x] margin-inline
+- [ ] mask
+- [ ] offset
+- [x] outline
+- [x] overflow
+- [x] padding
+- [x] padding-block
+- [x] padding-inline
+- [ ] place-content
+- [ ] place-items
+- [ ] place-self
+- [x] scroll-margin
+- [x] scroll-padding
+- [x] scroll-timeline
+- [x] text-decoration
+- [x] text-emphasis
+- [x] transition
+
+### UTF-8 escape sequence
+
+UTF-8 escape sequences are decoded and replaced by their corresponding characters.
+
+------
+[← CSS Modules](./css-module.md) | [Custom Transform →](./transform.md) 

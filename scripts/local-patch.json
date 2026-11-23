@@ -1,0 +1,1227 @@
+{
+  "atrules": {
+    "@layer": {
+      "comment": "webref defines two at-rule forms: @layer <layer-name>? { <rule-list> } | @layer <layer-name>#;",
+      "syntax": "@layer [ <layer-name># | <layer-name>?  {\n  <stylesheet>\n} ]"
+    },
+    "@document": {
+      "comment": "not defined by webref",
+      "syntax": "@document [ <url> | url-prefix(<string>) | domain(<string>) | media-document(<string>) | regexp(<string>) ]# {\n  <group-rule-body>\n}"
+    },
+    "@starting-style": {
+      "comment": "not defined by webref",
+      "syntax": "@starting-style {\n  <declaration-list> | <group-rule-body>\n}"
+    },
+    "@charset": {
+    "syntax": "@charset \"<charset>\";"
+  },
+    "@font-feature-values": {
+      "syntax": " @font-feature-values <family-name># { <@historical-forms> | <@styleset> | <@character-variant> | <@swash> | <@ornaments> | <@annotation> } ",
+      "comment": "replace @font-feature-values syntax",
+      "descriptors": {
+        "font-display": {
+          "syntax": "auto | block | swap | fallback | optional"
+        }
+      }
+    },
+    "@historical-forms": {
+      "syntax": " @historical-forms { <declaration-list> }",
+      "comment": "replace @historical-forms syntax"
+    },
+    "@styleset": {
+      "syntax": "@styleset { <declaration-list> }",
+      "comment": "replace @styleset syntax"
+    },
+    "@character-variant": {
+      "syntax": "@character-variant { <declaration-list> }",
+      "comment": "replace @character-variant syntax"
+    },
+    "@swash": {
+      "syntax": "@swash { <declaration-list> }",
+      "comment": "replace @swash syntax"
+    },
+    "@ornaments": {
+      "syntax": "@ornaments { <declaration-list> }",
+      "comment": "replace @ornaments syntax"
+    },
+    "@annotation": {
+      "syntax": "@annotation { <declaration-list> }",
+      "comment": "replace @annotation syntax"
+    },
+    "@when": {
+      "syntax": " @when <when-condition> {\n <group-rule-body>\n}"
+    },
+    "@else": {
+      "syntax": " @else <when-condition>? {\n <group-rule-body>\n}"
+    },
+    "@custom-media": {
+      "syntax": " @custom-media <extension-name> [<media-query-list> | true | false ];"
+    },
+    "@top-left-corner": {
+      "syntax": " @top-left-corner { <declaration-list> }"
+    },
+    "@top-left": {
+      "syntax": " @top-left { <declaration-list> }"
+    },
+    "@top-center": {
+      "syntax": " @top-center { <declaration-list> }"
+    },
+    "@top-right": {
+      "syntax": " @top-right { <declaration-list> }"
+    },
+    "@top-right-corner": {
+      "syntax": " @top-right-corner { <declaration-list> }"
+    },
+    "@bottom-left-corner": {
+      "syntax": " @bottom-left-corner { <declaration-list> }"
+    },
+    "@bottom-left": {
+      "syntax": " @bottom-left { <declaration-list> }"
+    },
+    "@bottom-right": {
+      "syntax": " @bottom-right { <declaration-list> }"
+    },
+    "@bottom-right-corner": {
+      "syntax": " @bottom-right-corner { <declaration-list> }"
+    },
+    "@mixin": {
+      "comment": "a mixin may have no parameters: @mixin --name { ... }",
+      "syntax": "@mixin [ <function-token> <function-parameter>#? ) | <dashed-ident> ] { <block-contents> }"
+    },
+    "@apply": {
+      "syntax": " @apply [ <dashed-ident> | <dashed-function> ] [ { <declaration-list> } ]?;"
+    },
+    "@result": {
+      "comment": "the result of a mixin: https://drafts.csswg.org/css-mixins-1/#mixin-rule",
+      "syntax": "@result { <block-contents> }"
+    },
+    "@contents": {
+      "syntax": " @contents [ { <declaration-list> } ]?;"
+    },
+    "@left-top": {
+      "syntax": " @left-top { <declaration-list> }"
+    },
+    "@left-middle": {
+      "syntax": " @left-middle { <declaration-list> }"
+    },
+    "@left-bottom": {
+      "syntax": " @left-bottom { <declaration-list> }"
+    },
+    "@position-try": {
+      "syntax": " @position-try <dashed-ident> { <declaration-list> } ",
+      "comment": "replace @position-try syntax",
+      "descriptors": {
+        "top": "<'top'>",
+        "left": "<'left'>",
+        "bottom": "<'bottom'>",
+        "right": "<'right'>",
+        "inset-block-start": "<'inset-block-start'>",
+        "inset-block-end": "<'inset-block-end'>",
+        "inset-inline-start": "<'inset-inline-start'>",
+        "inset-inline-end": "<'inset-inline-end'>",
+        "inset-block": "<'inset-block'>",
+        "inset-inline": "<'inset-inline'>",
+        "inset": "<'inset'>",
+        "margin-top": "<'margin-top'>",
+        "margin-left": "<'margin-left'>",
+        "margin-bottom": "<'margin-bottom'>",
+        "margin-right": "<'margin-right'>",
+        "margin-block-start": "<'margin-block-start'>",
+        "margin-block-end": "<'margin-block-end'>",
+        "margin-inline-start": "<'margin-inline-start'>",
+        "margin-inline-end": "<'margin-inline-end'>",
+        "margin": "<'margin'>",
+        "margin-block": "<'margin-block'>",
+        "margin-inline": "<'margin-inline'>",
+        "width": "<'width'>",
+        "height": "<'height'>",
+        "min-width": "<'min-width'>",
+        "min-height": "<'min-height'>",
+        "max-width": "<'max-width'>",
+        "max-height": "<'max-height'>",
+        "block-size": "<'block-size'>",
+        "inline-size": "<'inline-size'>",
+        "min-block-size": "<'min-block-size'>",
+        "min-inline-size": "<'min-inline-size'>",
+        "max-block-size": "<'max-block-size'>",
+        "max-inline-size": "<'max-inline-size'>",
+        "align-self": "<'align-self'> | anchor-center",
+        "justify-self": "<'justify-self'> | anchor-center"
+      }
+    },
+    "@right-top": {
+      "syntax": " @right-top { <declaration-list> }"
+    },
+    "@right-middle": {
+      "syntax": " @right-middle { <declaration-list> }"
+    },
+    "@right-bottom": {
+      "syntax": " @right-bottom { <declaration-list> }"
+    },
+    "@value": {
+      "comment": "css modules: variable declaration, or variables imported from an alias",
+      "syntax": "@value [ <declaration> | [ <ident># from <ident> ] ]"
+    }
+  },
+  "properties": {
+    "-ms-filter": {
+      "comment": "not defined by webref, it would be validated as filter",
+      "syntax": "<string>"
+    },
+    "clip": {
+      "comment": "extend with the legacy syntax: the arguments may be separated by spaces",
+      "syntax": "| rect( <top> <right> <bottom> <left> )"
+    },
+    "-webkit-background-clip": {
+      "comment": "legacy syntax of the vendor prefixed alias of background-clip, extends <'background-clip'>: the legacy values (border, padding, content, text)",
+      "syntax": "[ <bg-clip> | border | padding | content | text ]#"
+    },
+    "-ms-overflow-style": {
+      "syntax": "auto | none | scrollbar | -ms-autohiding-scrollbar"
+    },
+    "-moz-user-select": {
+      "comment": "extend with auto",
+      "syntax": "| auto"
+    },
+    "-moz-padding-start": {
+      "syntax": "<'padding-top'>"
+    },
+    "-webkit-margin-end": {
+      "syntax": "<'margin-block-end'>"
+    },
+    "font": {
+      "comment": "extend font syntax",
+      "syntax": "| [ <'font-size'> [ / <'line-height'> ]? <'font-family'># ]"
+    },
+    "text-align": {
+      "comment": "extend with -non-standard-text-align",
+      "syntax": "| <-non-standard-text-align>"
+    },
+    "composes": {
+      "syntax": "<composes-selector>#"
+    },
+    "stroke-linejoin": {
+      "syntax": "| arcs | crop | fallback | miter-clip"
+    },
+    "stroke-width": {
+      "comment": "replace stroke-width syntax",
+      "syntax": "[ <length-percentage> | <line-width> | <number> ]# "
+    },
+    "scroll-margin": {
+      "syntax": "<length>{1,4}"
+    },
+    "scroll-margin-top": {
+      "syntax": "auto | <length-percentage [0,∞]>"
+    },
+    "scroll-margin-right": {
+      "syntax": "auto | <length-percentage [0,∞]>"
+    },
+    "scroll-margin-bottom": {
+      "syntax": "auto | <length-percentage [0,∞]>"
+    },
+    "scroll-margin-left": {
+      "syntax": "auto | <length-percentage [0,∞]>"
+    },
+    "scroll-timeline-name": {
+      "syntax": "[ none | <dashed-ident> ]#"
+    },
+    "scroll-timeline-axis": {
+      "syntax": "[ block | inline | x | y ]#"
+    },
+    "scroll-timeline": {
+      "syntax": "[ <'scroll-timeline-name'> <'scroll-timeline-axis'>? ]#"
+    },
+    "transform-origin": {
+      "syntax": "[ left | center | right | top | bottom | <length-percentage> ] | [ left | center | right | <length-percentage> ] [ top | center | bottom | <length-percentage> ] <length>? | [ [ center | left | right ] && [ center | top | bottom ] ] <length>?"
+    },
+    "-webkit-mask": {
+      "comment": "legacy syntax of the vendor prefixed alias of mask, extends <'mask'>: the legacy values border, padding, content, text (clip and origin), <composite-style>",
+      "syntax": "[ <mask-reference> || <position> [ / <bg-size> ]? || <repeat-style> || [ <geometry-box> | border | padding | content | text ] || [ <geometry-box> | no-clip | border | padding | content | text ] || [ <compositing-operator> | <composite-style> ] || <masking-mode> ]#"
+    },
+    "-webkit-mask-clip": {
+      "comment": "legacy syntax of the vendor prefixed alias of mask-clip, extends <'mask-clip'>: the legacy values (border, padding, content, text)",
+      "syntax": "[ <coord-box> | no-clip | border | padding | content | text ]#"
+    },
+    "-webkit-mask-origin": {
+      "comment": "legacy syntax of the vendor prefixed alias of mask-origin, extends <'mask-origin'>: the legacy values (border, padding, content)",
+      "syntax": "[ <coord-box> | border | padding | content ]#"
+    },
+    "-webkit-mask-composite": {
+      "comment": "legacy syntax of the vendor prefixed alias of mask-composite, extends <'mask-composite'>: the legacy compositing operators",
+      "syntax": "[ <compositing-operator> | <composite-style> ]#"
+    }
+  },
+  "selectors": {
+    ":nth-child()": {
+      "comment": "replace the webref prose syntax",
+      "syntax": ":nth-child( <an+b> [ of <complex-selector-list> ]? )"
+    },
+    ":nth-last-child()": {
+      "comment": "replace the webref prose syntax",
+      "syntax": ":nth-last-child( <an+b> [ of <complex-selector-list> ]? )"
+    },
+    ":nth-of-type()": {
+      "comment": "replace the webref prose syntax",
+      "syntax": ":nth-of-type( <an+b> )"
+    },
+    ":nth-last-of-type()": {
+      "comment": "replace the webref prose syntax",
+      "syntax": ":nth-last-of-type( <an+b> )"
+    },
+    ":global": {
+      "syntax": ":global"
+    },
+    ":global()": {
+      "syntax": ":global( <forgiving-selector-list> )"
+    },
+    ":local": {
+      "syntax": ":local"
+    },
+    ":local()": {
+      "syntax": ":local( <forgiving-selector-list> )"
+    },
+    "::slotted()": {
+      "syntax": "::slotted( <compound-selector> )"
+    },
+    "::view-transition-group()": {
+      "syntax": "::view-transition-group([ '*' | <custom-ident> ])"
+    },
+    "::view-transition-image-pair()": {
+      "syntax": "::view-transition-image-pair([ '*' | <custom-ident> ])"
+    },
+    "::view-transition-new()": {
+      "syntax": "::view-transition-new([ '*' | <custom-ident> ])"
+    },
+    "::view-transition-old()": {
+      "syntax": "::view-transition-old([ '*' | <custom-ident> ])"
+    },
+    ":active-view-transition-type()": {
+      "syntax": ":active-view-transition-type( <custom-ident># )"
+    },
+    ":dir()": {
+      "syntax": ":dir( [ ltr | rtl ] )"
+    },
+    ":has()": {
+      "syntax": ":has( <forgiving-relative-selector-list> )"
+    },
+    ":host()": {
+      "syntax": ":host( <compound-selector> )"
+    },
+    ":host-context()": {
+      "syntax": ":host-context( <compound-selector> )"
+    },
+    ":is()": {
+      "syntax": ":is( <forgiving-selector-list> )"
+    },
+    ":lang()": {
+      "syntax": ":lang( <language-code> )"
+    },
+    ":not()": {
+      "syntax": ":not( <complex-selector-list> )"
+    },
+    ":where()": {
+      "syntax": ":where( <complex-selector-list> )"
+    },
+    ":-webkit-any()": {
+      "comment": "not defined by webref",
+      "syntax": ":-webkit-any( <forgiving-selector-list> )"
+    },
+    ":-webkit-any-link": {
+      "comment": "not defined by webref",
+      "syntax": ":-webkit-any-link"
+    }
+  },
+  "types": {
+    "cursor-predefined": {
+      "comment": "extend with the non standard values",
+      "syntax": "| hand | -webkit-grab | -webkit-grabbing | -webkit-zoom-in | -webkit-zoom-out | -moz-grab | -moz-grabbing | -moz-zoom-in | -moz-zoom-out"
+    },
+    "paint": {
+      "comment": "SVG 2 <paint> used by fill and stroke. webref reports the css-fill-stroke-3 definition (none | <image> | <svg-paint>)",
+      "syntax": "none | <color> | <url> [ none | <color> ]? | context-fill | context-stroke"
+    },
+    "family-name": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<string> | <custom-ident>+"
+    },
+    "media-query-list": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<media-query>#"
+    },
+    "view-transition-type": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<custom-ident>"
+    },
+    "animation-action": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "none | play | play-once | play-forwards | play-backwards | pause | reset | replay"
+    },
+    "font-src-list": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<font-src>#"
+    },
+    "generic-complete": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "serif | sans-serif | system-ui | cursive | fantasy | math | monospace"
+    },
+    "generic-incomplete": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "ui-serif | ui-sans-serif | ui-monospace | ui-rounded"
+    },
+    "id": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<id-selector>"
+    },
+    "level": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<integer>"
+    },
+    "size-keyword": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "auto | <intrinsic-size-keyword> | stretch"
+    },
+    "supports-condition-name": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<extension-name>"
+    },
+    "target-name": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<string>"
+    },
+    "timeline-range-center-subject": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "source | target"
+    },
+    "timeline-range-name": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "cover | contain | entry | exit | entry-crossing | exit-crossing"
+    },
+    "url-set": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<image-set()>"
+    },
+    "voice-family-name": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<string> | <custom-ident>+"
+    },
+    "whole-value": {
+      "comment": "webref only provides a prose definition",
+      "syntax": "<declaration-value>"
+    },
+    "alpha-value": {
+      "syntax": "<number> | <percentage> | none"
+    },
+    "relative-hwb-component": {
+      "syntax": "<number> | <percentage> | none | h | w | b | alpha"
+    },
+    "hwb()": {
+      "syntax": "| hwb(from <color> [ <hue> | none | h | w | b ] <relative-hwb-component>{2} [ / [ <alpha-value> | none] ]? )",
+      "comment": "extend hwb() syntax"
+    },
+    "relative-hsl-component": {
+      "syntax": "<number> | <percentage> | none | h | s | l | alpha"
+    },
+    "hsl()": {
+      "syntax": "| hsl(from <color> [ <hue> | none | h | s | l ] <relative-hsl-component>{2} [ / [ <alpha-value> | none] ]? )",
+      "comment": "extend hsl() syntax"
+    },
+    "hsla()": {
+      "syntax": "| hsla(from <color> < [ <hue> | none | h | s | l ] <relative-hsl-component>{2} [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend hsla() syntax"
+    },
+    "relative-rgb-component": {
+      "syntax": "<number> | <percentage> | none | r | g | b | alpha"
+    },
+    "rgb()": {
+      "syntax": "| rgb(from <color> <relative-rgb-component>{3} [ / [ <alpha-value> | none] ]? )",
+      "comment": "extend rgb() syntax"
+    },
+    "rgba()": {
+      "syntax": "| rgba(from <color> <relative-rgb-component>{3} [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend rgba() syntax"
+    },
+    "relative-lab-component": {
+      "syntax": "<number> | <percentage> | none | l | a | b | alpha"
+    },
+    "lab()": {
+      "syntax": "| lab(from <color> <relative-lab-component>{3} [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend lab() syntax"
+    },
+    "oklab()": {
+      "syntax": "| oklab(from <color> <relative-lab-component>{3} [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend oklab() syntax"
+    },
+    "relative-lch-component": {
+      "syntax": "<number> | <percentage> | none | l | c | h | alpha"
+    },
+    "lch()": {
+      "syntax": "| lch(from <color> <relative-lch-component>{2} [ <hue> | none | l | c | h ] [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend lch() syntax"
+    },
+    "oklch()": {
+      "syntax": "| oklch(from <color> <relative-lch-component>{2} [ <hue> | none | l | c | h ] [ / [ <alpha-value> | none ] ]? )",
+      "comment": "extend oklch() syntax"
+    },
+    "function-name": {
+      "syntax": "<dashed-ident>("
+    },
+    "function-parameter": {
+      "syntax": "<dashed-ident> <css-type>? [ : <default-value> ]?"
+    },
+    "alpha()": {
+      "syntax": " alpha([from <color>] [ / [<alpha-value> | none] ]? )"
+    },
+    "bg-position": {
+      "syntax": "<position> | <position-three>"
+    },
+    "if()": {
+      "syntax": "if( [ <if-branch> ; ]* )"
+    },
+    "if-branch": {
+      "syntax": "<if-condition> : <declaration-value>?"
+    },
+    "if-condition": {
+      "syntax": "<if-test> | else"
+    },
+    "if-test": {
+      "syntax": "supports( [ <ident> : <declaration-value> ] | <supports-condition> ) | media( <media-feature> | <media-condition> ) | style( <style-query> )"
+    },
+    "position": {
+      "syntax": "<position-one> | <position-two> | <position-four>"
+    },
+    "position-three": {
+      "syntax": "[ left | center | right ] && [ [ top | bottom ] <length-percentage> ] | [ [ left | right ] <length-percentage> ] && [ top | center | bottom ] "
+    },
+    "position-one": {
+      "syntax": "left | center | right | top | bottom | x-start | x-end | y-start | y-end | block-start | block-end | inline-start | inline-end | <length-percentage> "
+    },
+    "position-two": {
+      "syntax": "[ left | center | right | x-start | x-end ] && [ top | center | bottom | y-start | y-end ] | [ left | center | right | x-start | x-end | <length-percentage> ] [ top | center | bottom | y-start | y-end | <length-percentage> ] | [ block-start | center | block-end ] && [ inline-start | center | inline-end ] | [ start | center | end ]{2} "
+    },
+    "position-four": {
+      "syntax": "[ [ left | right | x-start | x-end ] <length-percentage> ] && [ [ top | bottom | y-start | y-end ] <length-percentage> ] | [ [ block-start | block-end ] <length-percentage> ] && [ [ inline-start | inline-end ] <length-percentage> ] | [ [ start | end ] <length-percentage> ]{2} "
+    },
+    "composes-selector": {
+      "syntax": "<ident>+ [from [global&&<string>]]?"
+    },
+    "color()": {
+      "syntax": "color( [from <color>]? <colorspace-params> [ / [ <alpha-value> | none ] ]? )"
+    },
+    "color-mix()": {
+      "syntax": "color-mix( <color-interpolation-method> ,? [ <color> && <percentage [0,100]>? ]#)"
+    },
+    "wcag2": {
+      "syntax": "wcag2 | wcag2([<number> | [ aa | aaa ] && large? ])"
+    },
+    "target-contrast": {
+      "syntax": "<wcag2>"
+    },
+    "contrast-color()": {
+      "syntax": "contrast-color( [ [ <color> && [ tbd-fg | tbd-bg ] && <target-contrast>? ] | [ <color> && [ tbd-fg | tbd-bg ] && <target-contrast>, <color># ] ] )"
+    },
+    "color-layers()": {
+      "syntax": "color-layers([ <blend-mode>, ]? <color># )"
+    },
+    "env()": {
+      "syntax": "env( <custom-ident> <integer [0,∞]>* , <declaration-value>? )"
+    },
+    "colorspace-params": {
+      "syntax": "[<custom-params> | <predefined-rgb-params> | <xyz-params>]"
+    },
+    "predefined-rgb-params": {
+      "syntax": "<predefined-rgb> [ <number> | <percentage> | none ]{3}"
+    },
+    "custom-params": {
+      "syntax": "<dashed-ident> [ <number> | <percentage> | none ]+"
+    },
+    "font-feature-custom-ident": {
+      "syntax": "<integer>"
+    },
+    "font-feature-custom-ident-list": {
+      "syntax": "<integer>+"
+    },
+    "font-feature-custom-ident-character-variant": {
+      "syntax": "<integer> <integer>?"
+    },
+    "container-condition": {
+      "syntax": "[ <container-name>? <container-query>? ]!"
+    },
+    "container-query": {
+      "syntax": "not <query-in-parens> | <query-in-parens> [ [ and <query-in-parens> ]* | [ or <query-in-parens> ]* ]"
+    },
+    "query-in-parens": {
+      "syntax": "( <container-query> ) | ( <size-feature> ) | style( <style-query> ) | scroll-state( <scroll-state-query> ) | <general-enclosed>"
+    },
+    "style-query": {
+      "syntax": "not <style-in-parens> | <style-in-parens> [ [ and <style-in-parens> ]* | [ or <style-in-parens> ]* ] | <style-feature>"
+    },
+    "style-in-parens": {
+      "syntax": "( <style-query> ) | ( <style-feature> ) | <general-enclosed>"
+    },
+    "style-feature": {
+      "syntax": "<style-feature-plain> | <style-feature-boolean> | <style-range>"
+    },
+    "style-feature-name": {
+      "syntax": "<ident> |<custom-property-name>"
+    },
+    "style-feature-plain": {
+      "syntax": "<style-feature-name> : <style-feature-value>"
+    },
+    "style-feature-boolean": {
+      "syntax": "<style-feature-name>"
+    },
+    "style-range": {
+      "syntax": "<style-range-value> <mf-comparison> <style-range-value> | <style-range-value> <mf-lt> <style-range-value> <mf-lt> <style-range-value> | <style-range-value> <mf-gt> <style-range-value> <mf-gt> <style-range-value>"
+    },
+    "style-range-value": {
+      "syntax": "<custom-property-name> | <style-feature-value>"
+    },
+    "scroll-state-query": {
+      "syntax": " not <scroll-state-in-parens> | <scroll-state-in-parens> [ [ and <scroll-state-in-parens> ]* | [ or <scroll-state-in-parens> ]* ] | <scroll-state-feature>"
+    },
+    "scroll-state-in-parens": {
+      "syntax": "( <scroll-state-query> ) | ( <scroll-state-feature> ) | <general-enclosed>"
+    },
+    "scroll-state-feature": {
+      "syntax": "<scroll-state-feature-plain> | <scroll-state-feature-boolean>"
+    },
+    "scroll-state-feature-plain": {
+      "syntax": "<scroll-state-feature-stuck> | <scroll-state-feature-snapped> | <scroll-state-feature-scrollable> | <scroll-state-feature-scrolled>"
+    },
+    "scroll-state-feature-stuck": {
+      "syntax": "stuck : [ none | top | right | bottom | left | block-start | inline-start | block-end | inline-end ]"
+    },
+    "scroll-state-feature-snapped": {
+      "syntax": "snapped : [ none | x | y | block | inline | both ]"
+    },
+    "scroll-state-feature-scrollable": {
+      "syntax": "scrollable : [ none | top | right | bottom | left | block-start | inline-start | block-end | inline-end | x | y | block | inline ]"
+    },
+    "scroll-state-feature-scrolled": {
+      "syntax": "scrolled : [ none | top | right | bottom | left | block-start | inline-start | block-end | inline-end | x | y | block | inline ]"
+    },
+    "scroll-state-feature-boolean": {
+      "syntax": "stuck | snapped | scrollable | scrolled"
+    },
+    "color-font-tech": {
+      "syntax": "color-colrv0 | color-colrv1 | color-svg | color-sbix | color-cbdt"
+    },
+    "font-features-tech": {
+      "syntax": "features-opentype | features-aat | features-graphite"
+    },
+    "font-tech-patch-values": {
+      "syntax": "incremental-patch | incremental-range | incremental-auto | variations | palettes"
+    },
+    "font-tech()": {
+      "syntax": "font-tech( <color-font-tech> | <font-features-tech> | <font-tech-patch-values> )"
+    },
+    "font-format-values": {
+      "syntax": "collection | embedded-opentype | opentype | truetype | svg | woff | woff2"
+    },
+    "font-format()": {
+      "syntax": "font-format(<font-format-values>)"
+    },
+    "at-rule()": {
+      "syntax": "at-rule(<at-keyword-token>)"
+    },
+    "named-feature()": {
+      "syntax": "named-feature( <ident> )"
+    },
+    "media()": {
+      "syntax": "media( [ <mf-plain> | <mf-boolean> | <mf-range> ] )"
+    },
+    "selector()": {
+      "syntax": "selector( <complex-selector> )"
+    },
+    "scroll-state()": {
+      "syntax": "scroll-state( <scroll-state-query> )"
+    },
+    "supports()": {
+      "syntax": "supports( <declaration> )"
+    },
+    "keyframe-selectors": {
+      "syntax": "<keyframe-selector>#"
+    },
+    "track-breadth": {
+      "comment": "extend track-breadth syntax with -non-standard-size",
+      "syntax": "| <-non-standard-size>"
+    },
+    "-non-standard-display": {
+      "comment": "extend display syntax with -ms-flexbox",
+      "syntax": "| -ms-flexbox"
+    },
+    "-non-standard-text-align": {
+      "comment": "extend text-align",
+      "syntax": "| -moz-center | -webkit-center | -webkit-match-parent"
+    },
+    "-legacy-radial-gradient-arguments": {
+      "syntax": " <position>? , [ [ <-legacy-radial-gradient-shape> || <-legacy-radial-gradient-size> ] | [ <length> | <percentage> ]{2} ]? , <color-stop-list>"
+    },
+    "composite-style": {
+      "comment": "legacy compositing operators of -webkit-mask-composite (mdn-data)",
+      "syntax": "clear | copy | source-over | source-in | source-out | source-atop | destination-over | destination-in | destination-out | destination-atop | xor"
+    }
+  },
+  "mediaFeatures": {
+    "standard": {
+      "viewport": {
+        "width": {
+          "type": "length"
+        },
+        "min-width": {
+          "type": "length"
+        },
+        "max-width": {
+          "type": "length"
+        },
+        "height": {
+          "type": "length"
+        },
+        "min-height": {
+          "type": "length"
+        },
+        "max-height": {
+          "type": "length"
+        },
+        "aspect-ratio": {
+          "type": "ratio"
+        },
+        "min-aspect-ratio": {
+          "type": "ratio"
+        },
+        "max-aspect-ratio": {
+          "type": "ratio"
+        },
+        "orientation": {
+          "type": "keyword",
+          "values": [
+            "portrait",
+            "landscape"
+          ]
+        }
+      },
+      "device-viewport": {
+        "device-width": {
+          "type": "length",
+          "status": "deprecated"
+        },
+        "device-height": {
+          "type": "length",
+          "status": "deprecated"
+        },
+        "device-aspect-ratio": {
+          "type": "ratio",
+          "status": "deprecated"
+        }
+      },
+      "display": {
+        "resolution": {
+          "type": "resolution",
+          "units": [
+            "dpi",
+            "dpcm",
+            "dppx"
+          ]
+        },
+        "min-resolution": {
+          "type": "resolution"
+        },
+        "max-resolution": {
+          "type": "resolution"
+        },
+        "scan": {
+          "type": "keyword",
+          "values": [
+            "interlace",
+            "progressive"
+          ],
+          "status": "deprecated"
+        },
+        "update": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "slow",
+            "fast"
+          ]
+        },
+        "overflow-block": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "scroll",
+            "paged"
+          ]
+        },
+        "overflow-inline": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "scroll"
+          ]
+        },
+        "display-mode": {
+          "type": "keyword",
+          "values": [
+            "fullscreen",
+            "standalone",
+            "minimal-ui",
+            "browser"
+          ]
+        }
+      },
+      "color": {
+        "color": {
+          "type": "integer"
+        },
+        "min-color": {
+          "type": "integer"
+        },
+        "max-color": {
+          "type": "integer"
+        },
+        "color-index": {
+          "type": "integer"
+        },
+        "min-color-index": {
+          "type": "integer"
+        },
+        "max-color-index": {
+          "type": "integer"
+        },
+        "monochrome": {
+          "type": "integer"
+        },
+        "min-monochrome": {
+          "type": "integer"
+        },
+        "max-monochrome": {
+          "type": "integer"
+        },
+        "color-gamut": {
+          "type": "keyword",
+          "values": [
+            "srgb",
+            "p3",
+            "rec2020"
+          ]
+        },
+        "dynamic-range": {
+          "type": "keyword",
+          "values": [
+            "standard",
+            "high"
+          ]
+        },
+        "inverted-colors": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "inverted"
+          ]
+        }
+      },
+      "input": {
+        "pointer": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "coarse",
+            "fine"
+          ]
+        },
+        "any-pointer": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "coarse",
+            "fine"
+          ]
+        },
+        "hover": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "hover"
+          ]
+        },
+        "any-hover": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "hover"
+          ]
+        }
+      },
+      "user-preferences": {
+        "prefers-reduced-motion": {
+          "type": "keyword",
+          "values": [
+            "no-preference",
+            "reduce"
+          ]
+        },
+        "prefers-reduced-transparency": {
+          "type": "keyword",
+          "values": [
+            "no-preference",
+            "reduce"
+          ]
+        },
+        "prefers-contrast": {
+          "type": "keyword",
+          "values": [
+            "no-preference",
+            "less",
+            "more",
+            "custom"
+          ]
+        },
+        "prefers-color-scheme": {
+          "type": "keyword",
+          "values": [
+            "light",
+            "dark"
+          ]
+        },
+        "prefers-reduced-data": {
+          "type": "keyword",
+          "values": [
+            "no-preference",
+            "reduce"
+          ]
+        }
+      },
+      "accessibility": {
+        "forced-colors": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "active"
+          ]
+        },
+        "scripting": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "initial-only",
+            "enabled"
+          ]
+        }
+      },
+      "legacy": {
+        "grid": {
+          "type": "boolean",
+          "values": [
+            0,
+            1
+          ]
+        },
+        "light-level": {
+          "type": "keyword",
+          "values": [
+            "dim",
+            "normal",
+            "washed"
+          ],
+          "status": "deprecated"
+        }
+      },
+      "environment": {
+        "environment-blending": {
+          "type": "keyword",
+          "values": [
+            "opaque",
+            "additive",
+            "subtractive"
+          ]
+        }
+      },
+      "navigation": {
+        "nav-controls": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "back"
+          ]
+        }
+      },
+      "video": {
+        "video-color-gamut": {
+          "type": "keyword",
+          "values": [
+            "srgb",
+            "p3",
+            "rec2020"
+          ]
+        },
+        "video-dynamic-range": {
+          "type": "keyword",
+          "values": [
+            "standard",
+            "high"
+          ]
+        }
+      }
+    },
+    "vendor-prefixed": {
+      "-webkit-": {
+        "-webkit-device-pixel-ratio": {
+          "type": "number",
+          "status": "deprecated",
+          "equivalent": "resolution"
+        },
+        "-webkit-max-device-pixel-ratio": {
+          "type": "number",
+          "status": "deprecated"
+        },
+        "-webkit-transform-3d": {
+          "type": "boolean",
+          "values": [
+            0,
+            1
+          ],
+          "status": "non-standard"
+        },
+        "-webkit-touch-enabled": {
+          "type": "boolean",
+          "values": [
+            0,
+            1
+          ],
+          "status": "non-standard"
+        },
+        "-webkit-min-device-pixel-ratio": {
+          "type": "number",
+          "status": "deprecated"
+        }
+      },
+      "-moz-": {
+        "-moz-device-pixel-ratio": {
+          "type": "number",
+          "status": "deprecated"
+        },
+        "-moz-touch-enabled": {
+          "type": "boolean",
+          "values": [
+            0,
+            1
+          ],
+          "status": "non-standard"
+        },
+        "-moz-os-version": {
+          "type": "string",
+          "status": "internal"
+        }
+      },
+      "-ms-": {
+        "-ms-high-contrast": {
+          "type": "keyword",
+          "values": [
+            "none",
+            "active",
+            "black-on-white",
+            "white-on-black"
+          ],
+          "status": "deprecated",
+          "equivalent": "forced-colors"
+        },
+        "-ms-view-state": {
+          "type": "keyword",
+          "values": [
+            "snapped",
+            "fullscreen-portrait",
+            "fullscreen-landscape",
+            "filled"
+          ],
+          "status": "obsolete"
+        }
+      },
+      "-o-": {
+        "-o-device-pixel-ratio": {
+          "type": "number",
+          "status": "obsolete"
+        }
+      }
+    }
+  },
+  "units": {
+    "Hz": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "Q": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "cap": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "ch": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "cm": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dB": {
+      "comment": "css-speech <decibel>: webref only provides a prose definition"
+    },
+    "deg": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dpcm": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dpi": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dppx": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvb": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvi": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvmax": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvmin": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "dvw": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "em": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "ex": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "fr": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "grad": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "ic": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "in": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "kHz": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvb": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvi": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvmax": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvmin": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "lvw": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "mm": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "ms": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "pc": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "pt": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "px": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rad": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rcap": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rch": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rem": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rex": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "ric": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "rlh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "s": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "st": {
+      "comment": "css-speech <semitones>: webref only provides a prose definition"
+    },
+    "svb": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "svh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "svi": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "svmax": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "svmin": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "svw": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "turn": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vb": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vh": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vi": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vmax": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vmin": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "vw": {
+      "comment": "units are not listed by @webref/css"
+    },
+    "x": {
+      "comment": "units are not listed by @webref/css"
+    }
+  },
+  "skipped": [
+    "container"
+  ]
+}

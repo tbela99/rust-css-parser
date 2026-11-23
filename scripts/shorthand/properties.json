@@ -1,0 +1,243 @@
+[
+    {
+        "shorthand": "gap",
+        "properties": [
+            "row-gap",
+            "column-gap"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": false,
+        "separator": null,
+        "keywords": [
+            "normal"
+        ]
+    },
+    {
+        "shorthand": "inset",
+        "properties": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": false,
+        "separator": null,
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "margin",
+        "properties": [
+            "margin-top",
+            "margin-right",
+            "margin-bottom",
+            "margin-left"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": false,
+        "separator": null,
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "margin-inline",
+        "properties": [
+            "margin-inline-start",
+            "margin-inline-end"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": false,
+        "separator": null,
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "margin-block",
+        "properties": [
+            "margin-block-start",
+            "margin-block-end"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": false,
+        "separator": null,
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "padding",
+        "properties": [
+            "padding-top",
+            "padding-right",
+            "padding-bottom",
+            "padding-left"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "keywords": []
+    },
+    {
+        "shorthand": "padding-inline",
+        "properties": [
+            "padding-inline-start",
+            "padding-inline-end"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "keywords": []
+    },
+    {
+        "shorthand": "padding-block",
+        "properties": [
+            "padding-block-start",
+            "padding-block-end"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "keywords": []
+    },
+    {
+        "shorthand": "scroll-margin",
+        "properties": [
+            "scroll-margin-top",
+            "scroll-margin-right",
+            "scroll-margin-bottom",
+            "scroll-margin-left"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "default": [
+            "0"
+        ],
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "scroll-padding",
+        "properties": [
+            "scroll-padding-top",
+            "scroll-padding-right",
+            "scroll-padding-bottom",
+            "scroll-padding-left"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "keywords": [
+            "auto"
+        ]
+    },
+    {
+        "shorthand": "border-radius",
+        "properties": [
+            "border-top-left-radius",
+            "border-top-right-radius",
+            "border-bottom-right-radius",
+            "border-bottom-left-radius"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "multiple": true,
+        "separator": {
+            "typ": "Literal",
+            "val": "/"
+        },
+        "keywords": []
+    },
+    {
+        "shorthand": "border-width",
+        "map": "border",
+        "properties": [
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width"
+        ],
+        "types": [
+            "Length",
+            "Perc"
+        ],
+        "default": [
+            "medium"
+        ],
+        "keywords": [
+            "thin",
+            "medium",
+            "thick"
+        ]
+    },
+    {
+        "shorthand": "border-style",
+        "map": "border",
+        "properties": [
+            "border-top-style",
+            "border-right-style",
+            "border-bottom-style",
+            "border-left-style"
+        ],
+        "types": [],
+        "default": [
+            "none"
+        ],
+        "keywords": [
+            "none",
+            "hidden",
+            "dotted",
+            "dashed",
+            "solid",
+            "double",
+            "groove",
+            "ridge",
+            "inset",
+            "outset"
+        ]
+    },
+    {
+        "shorthand": "border-color",
+        "map": "border",
+        "properties": [
+            "border-top-color",
+            "border-right-color",
+            "border-bottom-color",
+            "border-left-color"
+        ],
+        "types": [
+            "Color"
+        ],
+        "default": [
+            "currentcolor"
+        ],
+        "keywords": []
+    }
+]

@@ -1,0 +1,128 @@
+# Build the extensions of the workspace (css-parser-napi: the N-API addon, css-parser-wasm: the WebAssembly module),
+# then run the rust tests and the specs (N-API and WASM in node, WASM in the browsers)
+
+name: CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  # run by publish.yml before publishing
+  workflow_call:
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [ 22.x, 24.x, 26.x ]
+
+    steps:
+      - uses: actions/checkout@v7
+      # rustup is installed when the runner does not provide it, then the stable toolchain (rustc, cargo) and the
+      # WebAssembly target. the build uses `rustup run stable cargo ...`
+      - name: Install the rust toolchain (rustc, cargo) and the WebAssembly target
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component cargo --target wasm32-unknown-unknown
+          rustup run stable rustc --version
+          rustup run stable cargo --version
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      # the dev dependencies are installed: binaryen provides wasm-opt, used by the build. npm install, not npm ci:
+      # package-lock.json is not committed
+      - name: Install NPM dependencies
+        run: npm install --include=dev
+      - name: Check wasm-opt
+        run: npx --no-install wasm-opt --version
+      - name: Build
+        run: npm run build
+      - name: Rust tests
+        run: rustup run stable cargo test --release --workspace
+      - name: Install playwright dependencies
+        run: npx playwright install --with-deps
+      - name: Specs (css-parser-napi in node)
+        run: npm run test:napi
+      - name: Specs (css-parser-wasm in node)
+        run: npm run test:wasm
+      - name: Specs (css-parser-wasm in the browsers)
+        run: npm run test:web
+
+  # the N-API package as a client installs it: the tarball has no addon, the install script builds it from the rust
+  # sources of the package (rust/)
+  napi-install:
+
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+        node-version: [ 22.x, 26.x ]
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the rust toolchain (rustc, cargo)
+        shell: bash
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component cargo
+          rustup default stable
+          cargo --version
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Install NPM dependencies
+        run: npm install --include=dev
+      # stages the rust sources (extensions/css-parser-napi/rust) and the javascript modules
+      - name: Build
+        run: npm run build:napi
+      - name: Pack
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack"
+          npm pack --workspace extensions/css-parser-napi --ignore-scripts --pack-destination "$RUNNER_TEMP/pack"
+          if tar tzf "$RUNNER_TEMP"/pack/*.tgz | grep -q '\.node$'; then
+            echo 'the package must not contain the N-API addon' >&2
+            exit 1
+          fi
+      # outside of the repository, like a client. the install script is run explicitly as well: recent npm versions
+      # block the install scripts that are not approved
+      - name: Install the package and build the addon
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/client"
+          cd "$RUNNER_TEMP/client"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/pack/*.tgz --foreground-scripts
+          package=node_modules/@tbela99/rust-css-parser-napi
+          if [ ! -f "$package/dist/css_parser.node" ]; then
+            node "$package/install.js"
+          fi
+          test -f "$package/dist/css_parser.node"
+          test ! -d "$package/rust/target"
+      - name: Smoke test
+        shell: bash
+        working-directory: ${{ runner.temp }}/client
+        run: |
+          node --input-type=module -e '
+          import { transformSync } from "@tbela99/rust-css-parser-napi";
+          const { code } = transformSync(".a { color: #ff0000; width: calc(1px + 2px) }");
+          if (code !== ".a{color:red;width:3px}") throw new Error(`unexpected output: ${code}`);
+          console.log(code);
+          '

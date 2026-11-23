@@ -1,0 +1,56 @@
+{
+  "name": "@tbela99/rust-css-parser-napi",
+  "version": "2.2.1",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "files": [
+    "dist",
+    "!dist/css_parser.node",
+    "rust",
+    "!rust/target",
+    "install.js",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "description": "CSS parser, validator and minifier for node: the rust port of @tbela99/css-parser as a native N-API addon",
+  "main": "./dist/node.js",
+  "exports": {
+    ".": "./dist/node.js",
+    "./node": "./dist/node.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "install": "node install.js",
+    "build": "sh ../../build-bindings.sh napi",
+    "test": "cd ../.. && npm run test:napi",
+    "prepublishOnly": "cd ../.. && npm run build:napi && npm run test:napi"
+  },
+  "author": "Thierry Bela",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tbela99/rust-css-parser.git"
+  },
+  "keywords": [
+    "parser",
+    "css",
+    "css-parser",
+    "minifier",
+    "validator",
+    "css-modules",
+    "nesting",
+    "rust",
+    "napi",
+    "native"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ]
+}

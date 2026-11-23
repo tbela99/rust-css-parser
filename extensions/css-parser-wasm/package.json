@@ -1,0 +1,50 @@
+{
+  "name": "@tbela99/rust-css-parser-wasm",
+  "version": "2.2.1",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "description": "CSS parser, validator and minifier for node and the browsers: the rust port of @tbela99/css-parser as a WebAssembly module",
+  "main": "./dist/node.js",
+  "browser": "./dist/web.js",
+  "exports": {
+    ".": {
+      "node": "./dist/node.js",
+      "default": "./dist/web.js"
+    },
+    "./node": "./dist/node.js",
+    "./web": "./dist/web.js",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "sh ../../build-bindings.sh wasm",
+    "test": "cd ../.. && npm run test:wasm && npm run test:web",
+    "prepublishOnly": "cd ../.. && npm run build:wasm && npm run test:wasm"
+  },
+  "author": "Thierry Bela",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tbela99/rust-css-parser.git"
+  },
+  "keywords": [
+    "parser",
+    "css",
+    "css-parser",
+    "minifier",
+    "validator",
+    "css-modules",
+    "nesting",
+    "rust",
+    "wasm",
+    "webassembly",
+    "browser"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

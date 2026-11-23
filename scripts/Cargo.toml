@@ -1,0 +1,24 @@
+# the data generators of the repository (ports of the typescript scripts): not part of the library
+[package]
+name = "css-parser-scripts"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# its own workspace: built with `cargo run --manifest-path scripts/Cargo.toml --bin <name>`
+[workspace]
+
+[dependencies]
+serde = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+ureq = "2"
+regex = "1"
+
+[[bin]]
+name = "webref"
+path = "webref.rs"
+
+[[bin]]
+name = "shorthand"
+path = "shorthand/main.rs"

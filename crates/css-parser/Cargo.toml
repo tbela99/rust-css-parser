@@ -1,0 +1,16 @@
+[package]
+name = "rust-css-parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rust port of @tbela99/css-parser"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+sha1 = "0.10"
+sha2 = "0.10"

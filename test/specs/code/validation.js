@@ -1,0 +1,1015 @@
+import { EnumAstNodeStatus } from "#dist/ast/types.js";
+
+export function run(describe, expect, it, transform, parse, render, dirname, readFile) {
+    const root = new URL(dirname(import.meta.url) + "/../../../");
+
+    describe("selector validation", function () {
+        it("selector validation #1", function () {
+            return parse(
+                `
+#404 {
+    --animate-duration: 1s;
+}
+
+.s, #404 {
+    --animate-duration: 1s;
+}
+
+.s [type="text" {
+    --animate-duration: 1s;
+}
+
+.s [type="text"]] {
+    --animate-duration: 1s;
+}
+
+.s [type="text"] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" i] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" s] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b], {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b]+ {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b]+ b {
+    --animate-duration: 1s;
+}
+
+.s [type="text" i]+ b {
+    --animate-duration: 1s;
+}
+
+
+.s [type="text"())] {
+    --animate-duration: 1s;
+}
+.s() {
+    --animate-duration: 1s;
+}
+.s:focus {
+    --animate-duration: 1s;
+}
+
+`,
+                { validation: true, nestingRules: false },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { beautify: true }).code)
+                    .equals(`.s :is([type=text],[type=text i],[type=text s]),.s [type=text i]+b,.s:focus {
+ --animate-duration: 1s
+}`),
+            );
+        });
+
+        it("keyframe selector validation #2", function () {
+            return transform(`
+
+    @-webkit-keyframes flash {
+            from,
+            50%,
+                to {
+                opacity: 1;
+            }
+
+            25%,
+            75% {
+                opacity: 0;
+            }
+        }
+
+`).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false, validation: true }).code)
+                    .equals(`@-webkit-keyframes flash {
+ 0%,50%,to {
+  opacity: 1
+ }
+ 25%,75% {
+  opacity: 0
+ }
+}`),
+            );
+        });
+
+        it("selector validation #3", function () {
+            return parse(
+                `
+html, body, div, span, applet, object, iframe,
+            h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+            a, abbr, acronym, address, big, cite, code,
+            del, dfn, em, img, ins, kbd, q, s, samp,
+            small, strike, strong, sub, sup, tt, var,
+        b, u, i, center,
+            dl, dt, dd, ol, ul, li,
+            fieldset, form, label, legend,
+            table, caption, tbody, tfoot, thead, tr, th, td,
+            article, aside, canvas, details, embed,
+            figure, figcaption, footer, header, hgroup,
+            menu, nav, output, ruby, section, summary,
+            time, mark, audio, video {
+            margin: 0;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+            font: inherit;
+            vertical-align: baseline;
+        }
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td,article,aside,canvas,details,embed,figure,figcaption,footer,header,hgroup,menu,nav,output,ruby,section,summary,time,mark,audio,video {
+ margin: 0;
+ padding: 0;
+ border: 0;
+ font: inherit;
+ vertical-align: baseline
+}`),
+            );
+        });
+
+        it("nested selector validation #4", function () {
+            return parse(
+                `
+
+[foo="bar help" b] {
+    color: red;
+}
+
+.foo-bar {
+ width: 12px;
+ height: 25%;
+ >a {
+  color: #fff
+ }
+ >a, + a, ~ a b {
+  color: #fff
+ }
+& b {
+  color: #fff
+ }
+}
+
+ >a {
+  color: #fff
+ }
+ >a, + a, ~ a b {
+  color: #fff
+ }
+& b {
+  color: #fff
+ }
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`.foo-bar {
+ width: 12px;
+ height: 25%;
+ >a,+a,~a b,& b {
+  color: #fff
+ }
+}`),
+            );
+        });
+
+        it("nested selector validation #5", function () {
+            return transform(
+                `
+
+.pure-table-bordered tbody > tr:last-child > td {
+    border-bottom-width: 0;
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-color: #34edc7;
+    border-style: medium;
+}
+`,
+                { minify: false, validation: true },
+            ).then((result) =>
+                expect(result.code).equals(`.pure-table-bordered tbody>tr:last-child>td {
+ border-bottom-width: 0;
+ border-top-width: 0;
+ border-left-width: 0;
+ border-right-width: 0;
+ border-color: #34edc7;
+ border-style: medium
+}`),
+            );
+        });
+
+        it("selector without validation #6", function () {
+            return transform(
+                `
+
+#404 {
+    --animate-duration: 1s;
+}
+
+.s, #404 {
+    --animate-duration: 1s;
+}
+
+.s [type="text" {
+    --animate-duration: 1s;
+}
+
+.s [type="text"]] {
+    --animate-duration: 1s;
+}
+
+.s [type="text"] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" i] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" s] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b] {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b], {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b]+ {
+    --animate-duration: 1s;
+}
+
+.s [type="text" b]+ b {
+    --animate-duration: 1s;
+}
+
+.s [type="text" i]+ b {
+    --animate-duration: 1s;
+}
+
+
+.s [type="text"())] {
+    --animate-duration: 1s;
+}
+.s() {
+    --animate-duration: 1s;
+}
+.s:focus {
+    --animate-duration: 1s;
+}
+`,
+                { nestingRules: false },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false, validation: true }).code)
+                    .equals(`.s :is([type=text],[type=text i],[type=text s]),.s [type=text i]+b,.s:focus {
+ --animate-duration: 1s
+}`),
+            );
+        });
+    });
+
+    describe("at-rule validation", function () {
+        it("media validation #1", function () {
+            return parse(
+                `@import "styles.css"  screen
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@import "styles.css" screen;`),
+            );
+        });
+
+        it("media validation #2", function () {
+            return parse(
+                `@import "styles.css"  "screen"
+`,
+                { validation: true },
+            ).then((result) => expect(render(result.arena, result.ast, { minify: false }).code).equals(``));
+        });
+
+        it("media validation #3", function () {
+            return parse(
+                `@import "styles.css" bar,baz"
+`,
+                { validation: true },
+            ).then((result) => expect(render(result.arena, result.ast, { minify: false }).code).equals(``));
+        });
+
+        it("support validation #4", function () {
+            return parse(
+                `
+@supports (display: grid) {
+  div {
+    display: grid;
+  }
+}
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@supports (display:grid) {
+ div {
+  display: grid
+ }
+}`),
+            );
+        });
+
+        it("support validation #5", function () {
+            return parse(
+                `
+@supports not (display: grid) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@supports not (display:grid) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+
+        it("support validation #6", function () {
+            return parse(
+                `
+@supports (display: grid) and (not (display: inline-grid)) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`@supports (display:grid) and (not (display:inline-grid)) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+
+        it("support validation #7", function () {
+            return parse(
+                `
+@supports not (not (transform-origin: 2px)) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`@supports not (not (transform-origin:2px)) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+
+        it("support validation #8", function () {
+            return parse(
+                `
+@supports font-format(opentype) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`@supports font-format(opentype) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+
+        it("support validation #9", function () {
+            return parse(
+                `
+@supports font-tech(color-COLRv1) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`@supports font-tech(color-COLRv1) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+
+        it("support validation #10", function () {
+            return parse(
+                `
+@supports (display: table-cell) and
+  ((display: list-item) and (display: contents)) {
+  div {
+    float: right;
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`@supports (display:table-cell) and ((display:list-item) and (display:contents)) {
+ div {
+  float: right
+ }
+}`),
+            );
+        });
+    });
+
+    describe("declaration validation", function () {
+        it("@page #11", function () {
+            return parse(
+                `
+@page {
+  size: 8.5in 9in;
+  margin-top: 4in;
+    animation: view;
+}
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@page {
+ size: 8.5in 9in;
+ margin-top: 4in;
+ animation: view
+}`),
+            );
+        });
+
+        it("@page #12", function () {
+            //   foo: bar;
+            return parse(
+                `
+@page {
+  size: 8.5in 9in;
+  margin-top: 4in;
+    animation: view;
+}
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@page {
+ size: 8.5in 9in;
+ margin-top: 4in;
+ animation: view
+}`),
+            );
+        });
+
+        it("@page #13", function () {
+            return parse(
+                `
+
+/* Targets all even-numbered pages */
+@page :left {
+  margin-top: 4in;
+}
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code)
+                    .equals(`/* Targets all even-numbered pages */
+@page :left {
+ margin-top: 4in
+}`),
+            );
+        });
+
+        it("@page #14", function () {
+            return parse(
+                `
+
+@page :right {
+  size: 11in;
+  margin-top: 4in;
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@page :right {
+ size: 11in;
+ margin-top: 4in
+}`),
+            );
+        });
+
+        it("@page #15", function () {
+            return parse(
+                `
+
+@page wide {
+  size: a4 landscape;
+}
+
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@page wide {
+ size: a4 landscape
+}`),
+            );
+        });
+
+        it("@page #16", function () {
+            return parse(
+                `
+
+@page {
+  /* margin box at top right showing page number */
+  @top-right {
+    content: "Page " counter(pageNumber);
+  }
+}
+
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@page {
+ /* margin box at top right showing page number */
+ @top-right {
+  content: "Page " counter(pageNumber)
+ }
+}`),
+            );
+        });
+
+        it("media validation #17", function () {
+            return parse(
+                `@import "styles.css" tv,all;
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(`@import "styles.css";`),
+            );
+        });
+
+        it("document validation #18", function () {
+            return parse(
+                `@namespace svg url('http://www.w3.org/2000/svg')
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(render(result.arena, result.ast, { minify: false }).code).equals(
+                    `@namespace svg 'http://www.w3.org/2000/svg';`,
+                ),
+            );
+        });
+
+        it("supports validation #19", function () {
+            return transform(
+                `@supports (color:color-mix(in oklab,black,black)) {
+
+.hsl { color: hsl(195, 100%, 50%); }
+}
+`,
+                { validation: true },
+            ).then((result) =>
+                expect(result.code).equals(`@supports (color:color-mix(in oklab,black,black)){.hsl{color:#00bfff}}`),
+            );
+        });
+
+        it("supports validation #20", function () {
+            return transform(
+                `a {
+
+  text-shadow: 1px 2px 3px var(--bs-body-color);
+   box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg)));
+
+`,
+                { validation: true, beautify: true },
+            ).then((result) =>
+                expect(result.code).equals(`a {
+ text-shadow: 1px 2px 3px var(--bs-body-color);
+ box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state,var(--bs-table-bg-type,var(--bs-table-accent-bg)))
+}`),
+            );
+        });
+
+        it("file validation #21", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/full.css");
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                { validation: true, resolveImport: true },
+            ).then((result) => expect(result.errors.length).equals(5));
+        });
+
+        it("file validation #22", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/bootstrap.css");
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(0));
+        });
+
+        it("file validation #23", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/bootstrap-4.css");
+            // webref does not define -ms-user-select: it keeps its mdn-data definition (none | element | text),
+            // `-ms-user-select: auto` is invalid
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(1));
+        });
+
+        it("file validation #24", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/bootstrap-5.css");
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(0));
+        });
+
+        it("file validation #25", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/tailwind.css");
+            // webref does not define -ms-user-select: it keeps its mdn-data definition (none | element | text),
+            // `-ms-user-select: auto` and `-ms-user-select: all` are invalid
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(20));
+        });
+
+        it("file validation #26", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/tailwind-2.0.4.css");
+
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(12));
+        });
+
+        it("file validation #27", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/github-markdown.css");
+
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    validation: true,
+                    resolveImport: true,
+                },
+            ).then((result) => expect(result.errors.length).equals(1));
+        });
+
+        it("selector validation #28", function () {
+            return transform(
+                `
+  .markdown-body .highlight pre:has(
+  >.zeroclipboard-container,
+  ~.zeroclipboard-container,
+
+    +.zeroclipboard-container
+   ) {
+  min-height: 52px;
+}
+`,
+                {
+                    beautify: true,
+                    validation: true,
+                },
+            ).then((result) =>
+                expect(result.code)
+                    .equals(`.markdown-body .highlight pre:has(>.zeroclipboard-container,~.zeroclipboard-container,+.zeroclipboard-container) {
+ min-height: 52px
+}`),
+            );
+        });
+
+        it("selector validation #29", function () {
+            return transform(
+                `
+@document url(https://www.example.com/) {
+ h1 {
+  color: green
+ }
+}
+`,
+                {
+                    beautify: true,
+                    validation: true,
+                },
+            ).then((result) =>
+                expect(result.code).equals(`@document url(https://www.example.com/) {
+ h1 {
+  color: green
+ }
+}`),
+            );
+        });
+
+        it("selector validation #30", function () {
+            return transform(
+                `
+
+.pure-table-bordered tbody > tr:last-child > td {
+    border-bottom-width: 0;
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-color: #34edc7;
+    border-style: medium;
+}
+`,
+                {
+                    beautify: true,
+                    validation: true,
+                },
+            ).then((result) =>
+                expect(result.code).equals(`.pure-table-bordered tbody>tr:last-child>td {
+ border-width: 0;
+ border-color: #34edc7;
+ border-style: medium
+}`),
+            );
+        });
+
+        it("selector validation #31", function () {
+            return transform(
+                `
+
+.pure-table-bordered tbody > tr:last-child > td {
+    border-bottom-width: 0;
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-color: #34edc7;
+    border-style: groove;
+}
+`,
+                {
+                    beautify: true,
+                    validation: true,
+                },
+            ).then((result) =>
+                expect(result.code).equals(`.pure-table-bordered tbody>tr:last-child>td {
+ border: #34edc7 groove 0
+}`),
+            );
+        });
+
+        it("validation status override #32", function () {
+            const options = {
+                beautify: true,
+                validation: true,
+                visitor: {
+                    AtRule: (arena, id) => {
+                        // the object view reads and writes the arena
+                        const node = arena.toObject(id);
+
+                        if (node.state == EnumAstNodeStatus.Invalid) {
+                            node.state = EnumAstNodeStatus.ValidationFailed;
+                        }
+                    },
+                },
+            };
+
+            return transform(
+                `
+
+@supports 1 {
+
+    .foo {
+
+            height: calc(100px * 2/ 15);
+            height: 'new';
+            height: auto;
+    }
+}
+`,
+                options,
+            ).then((result) =>
+                expect(result.code).equals(`@supports 1 {
+ .foo {
+  height: auto;
+  height: 'new'
+ }
+}`),
+            );
+        });
+
+        it("ampersand in any order #33", function () {
+            // `<'box-shadow-color'>? && [ <length>{2} ... ] && <'box-shadow-position'>?`
+            return transform(`.a{box-shadow:inset 0 0 0 1px red}.b{box-shadow:red 0 0}.c{box-shadow:0 0 red inset}`, {
+                validation: true,
+            }).then((result) => expect(result.errors.length).equals(0));
+        });
+
+        it("unconsumed tokens #34", function () {
+            return transform(`.a{color:red blue}.b{width:10px 20px}`, {
+                validation: true,
+            }).then((result) => expect(result.errors.length).equals(2));
+        });
+
+        it("unicode range #35", function () {
+            return transform(`@font-face{font-family:x;unicode-range:U+0025-00FF,U+4??,u+1e00!important}u+a,p{color:red}`, {
+                validation: true,
+            }).then((result) => {
+                expect(result.errors.length).equals(0);
+                expect(result.code).equals(
+                    `@font-face{font-family:x;unicode-range:U+0025-00FF,U+4??,u+1e00!important}u+a,p{color:red}`,
+                );
+            });
+        });
+
+        it("numbers and units #36", function () {
+            return transform(`.a{line-height:1.5e2!important;voice-volume:6DB;width:2q;margin:8px 0 0!important}`, {
+                validation: true,
+            }).then((result) => {
+                expect(result.errors.length).equals(0);
+                expect(result.code).equals(`.a{line-height:150!important;voice-volume:6dB;width:2Q;margin:8px 0 0!important}`);
+            });
+        });
+
+        it("media feature length 0 #37", function () {
+            return transform(`@when media(width>0){.a{color:red}}`, {
+                validation: true,
+            }).then((result) => expect(result.errors.length).equals(0));
+        });
+
+        it("vendor prefixed alias is not renamed #38", function () {
+            return transform(
+                `.a{-webkit-transform:none;transform:none;-webkit-filter:none;filter:none;-webkit-box-sizing:border-box}`,
+                {
+                    validation: true,
+                },
+            ).then((result) => {
+                expect(result.errors.length).equals(0);
+                expect(result.code).equals(
+                    `.a{-webkit-transform:none;transform:none;-webkit-filter:none;filter:none;-webkit-box-sizing:border-box}`,
+                );
+            });
+        });
+
+        it("vendor prefixed alias is not renamed with minify false #44", function () {
+            // animate.css: 738 vendor prefixed aliases (-webkit-transform, -webkit-animation-name, ...)
+            return transform(`.a{-webkit-transform:none;transform:none;-webkit-animation-name:a;animation-name:a}`, {
+                minify: false,
+                beautify: false,
+                removeEmpty: true,
+                removeComments: true,
+                convertColor: true,
+            }).then((result) =>
+                expect(result.code).equals(
+                    `.a{-webkit-transform:none;transform:none;-webkit-animation-name:a;animation-name:a}`,
+                ),
+            );
+        });
+
+        it("vendor prefixed aliases of animate.css are not renamed #45", function () {
+            const url = new URL(dirname(import.meta.url) + "/../../files/css/animate.css");
+            // the 738 vendor prefixed aliases are kept: renaming them would remove 738 * 8 bytes (68171 bytes)
+            return transform(
+                `@import '${url.pathname.replace(root.pathname, "")}';
+`,
+                {
+                    resolveImport: true,
+                    minify: false,
+                    beautify: false,
+                    removeEmpty: true,
+                    removeComments: true,
+                    convertColor: true,
+                },
+            ).then((result) => {
+                expect(new TextEncoder().encode(result.code).length).equals(74075);
+                expect(result.code.match(/-webkit-transform:/g).length).equals(500);
+            });
+        });
+
+        it("vendor prefixed alias uses the syntax of the standard property #39", function () {
+            // -webkit-mask-box-image-width is an alias of mask-border-width
+            return Promise.all([
+                transform(`.a{-webkit-mask-box-image-width:10px;-webkit-mask-box-image-repeat:round stretch}`, {
+                    validation: true,
+                }),
+                transform(`.a{-webkit-mask-box-image-width:red}`, { validation: true }),
+                transform(`.a{-webkit-align-content:foo}`, { validation: true }),
+            ]).then(([valid, invalidWidth, invalidAlign]) => {
+                expect(valid.errors.length).equals(0);
+                expect(valid.code).equals(`.a{-webkit-mask-box-image-width:10px;-webkit-mask-box-image-repeat:round stretch}`);
+                expect(invalidWidth.errors.length).equals(1);
+                expect(invalidAlign.errors.length).equals(1);
+            });
+        });
+
+        it("vendor prefixed alias with a legacy syntax #40", function () {
+            // the legacy values extend the syntax of the standard property
+            return Promise.all([
+                transform(
+                    `.a{-webkit-mask-clip:border;-webkit-mask-composite:xor;-webkit-background-clip:text;-webkit-appearance:textfield}`,
+                    { validation: true },
+                ),
+                transform(`.a{-webkit-mask-clip:no-clip;-webkit-mask-composite:exclude;-webkit-appearance:auto}`, {
+                    validation: true,
+                }),
+                transform(`.a{mask-clip:border}`, { validation: true }),
+                transform(`.a{-webkit-appearance:foo}`, { validation: true }),
+            ]).then(([legacy, standard, standardProperty, invalid]) => {
+                expect(legacy.errors.length).equals(0);
+                expect(legacy.code).equals(
+                    `.a{-webkit-mask-clip:border;-webkit-mask-composite:xor;-webkit-background-clip:text;-webkit-appearance:textfield}`,
+                );
+                expect(standard.errors.length).equals(0);
+                // the legacy values are not accepted by the standard property
+                expect(standardProperty.errors.length).equals(1);
+                expect(invalid.errors.length).equals(1);
+            });
+        });
+
+        it("non standard property not defined by webref keeps its mdn-data definition #42", function () {
+            return transform(
+                `.a{-webkit-box-orient:vertical;-webkit-tap-highlight-color:#0000;-webkit-overflow-scrolling:touch;-ms-scroll-chaining:none}.b::-webkit-slider-thumb{font-smooth:auto}`,
+                {
+                    validation: "all",
+                    lenient: false,
+                },
+            ).then((result) => {
+                expect(result.errors.length).equals(0);
+                expect(result.code).equals(
+                    `.a{-webkit-box-orient:vertical;-webkit-tap-highlight-color:#0000;-webkit-overflow-scrolling:touch;-ms-scroll-chaining:none}.b::-webkit-slider-thumb{font-smooth:auto}`,
+                );
+            });
+        });
+
+        it("removePrefix renames to the non standard property #43", function () {
+            return transform(`.a{-webkit-box-orient:horizontal;-webkit-box-direction:normal;-webkit-font-smoothing:antialiased}`, {
+                removePrefix: true,
+            }).then((result) =>
+                expect(result.code).equals(`.a{box-orient:horizontal;box-direction:normal;font-smooth:antialiased}`),
+            );
+        });
+
+        it("legacy name alias that is not vendor prefixed is renamed #41", function () {
+            return transform(`.a{word-wrap:break-word}.b{grid-gap:10px}`, {
+                validation: true,
+            }).then((result) => {
+                expect(result.errors.length).equals(0);
+                expect(result.code).equals(`.a{overflow-wrap:break-word}.b{gap:10px}`);
+            });
+        });
+    });
+}

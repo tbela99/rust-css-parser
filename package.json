@@ -1,0 +1,55 @@
+{
+  "name": "@tbela99/rust-css-parser",
+  "version": "2.2.1",
+  "private": true,
+  "type": "module",
+  "description": "Rust port of @tbela99/css-parser: monorepo of the rust library and its extensions css-parser-napi (node, N-API) and css-parser-wasm (node and the browsers, WebAssembly)",
+  "workspaces": [
+    "extensions/css-parser-napi",
+    "extensions/css-parser-wasm"
+  ],
+  "imports": {
+    "#dist/*": {
+      "napi": "./extensions/css-parser-napi/dist/*",
+      "wasm": "./extensions/css-parser-wasm/dist/*",
+      "default": "./extensions/css-parser-wasm/dist/*"
+    }
+  },
+  "scripts": {
+    "build": "sh build-bindings.sh napi wasm",
+    "build:napi": "sh build-bindings.sh napi",
+    "build:wasm": "sh build-bindings.sh wasm",
+    "test": "npm run test:rust && npm run test:node && npm run test:web",
+    "test:rust": "cargo test --release --workspace",
+    "test:node": "npm run test:napi && npm run test:wasm",
+    "test:napi": "NODE_OPTIONS=--conditions=napi mocha --timeout 10000 \"test/specs/node.spec.js\"",
+    "test:wasm": "NODE_OPTIONS=--conditions=wasm mocha --timeout 10000 \"test/specs/node.spec.js\"",
+    "test:web": "web-test-runner \"./test/specs/web.spec.js\" --timeout 30000 --node-resolve --playwright --browsers chromium firefox webkit --root-dir=.",
+    "verify:napi": "npm run build:napi && npm run test:napi",
+    "verify:wasm": "npm run build:wasm && npm run test:wasm && npm run test:web",
+    "publish:napi:npm": "npm run verify:napi && npm publish --workspace extensions/css-parser-napi --ignore-scripts",
+    "publish:napi:jsr": "npm run verify:napi && cd extensions/css-parser-napi && jsr publish",
+    "publish:napi": "npm run verify:napi && npm publish --workspace extensions/css-parser-napi --ignore-scripts && cd extensions/css-parser-napi && jsr publish",
+    "publish:wasm:npm": "npm run verify:wasm && npm publish --workspace extensions/css-parser-wasm --ignore-scripts",
+    "publish:wasm:jsr": "npm run verify:wasm && cd extensions/css-parser-wasm && jsr publish",
+    "publish:wasm": "npm run verify:wasm && npm publish --workspace extensions/css-parser-wasm --ignore-scripts && cd extensions/css-parser-wasm && jsr publish",
+    "publish:npm": "npm run publish:napi:npm && npm run publish:wasm:npm",
+    "publish:jsr": "npm run publish:napi:jsr && npm run publish:wasm:jsr",
+    "publish:all": "npm run publish:napi && npm run publish:wasm",
+    "publish:dry-run": "npm run build && npm publish --workspaces --dry-run --ignore-scripts && (cd extensions/css-parser-napi && jsr publish --dry-run --allow-dirty) && (cd extensions/css-parser-wasm && jsr publish --dry-run --allow-dirty)",
+    "syntax-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin webref",
+    "config-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin shorthand",
+    "doc": "node scripts/docs.mjs"
+  },
+  "devDependencies": {
+    "@web/test-runner": "^1.0.1",
+    "@web/test-runner-playwright": "^1.0.2",
+    "binaryen": "132.0.0",
+    "chai": "^6.3.0",
+    "chai-as-promised": "^8.0.2",
+    "jsr": "0.14.3",
+    "marked": "18.2.1",
+    "mocha": "^12.0.3",
+    "playwright": "^1.65.1"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@tbela99/rust-css-parser-wasm",
+  "version": "2.2.1",
+  "license": "MIT",
+  "exports": {
+    ".": "./dist/node.js",
+    "./node": "./dist/node.js",
+    "./web": "./dist/web.js"
+  },
+  "publish": {
+    "include": [
+      "dist",
+      "README.md",
+      "LICENSE.md",
+      "package.json"
+    ],
+    "exclude": [
+      "!dist",
+      "!LICENSE.md"
+    ]
+  }
+}

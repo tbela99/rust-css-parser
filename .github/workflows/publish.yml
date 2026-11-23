@@ -1,0 +1,120 @@
+# Publish @tbela99/rust-css-parser-napi and @tbela99/rust-css-parser-wasm to npm and JSR when a version tag (v2.2.1)
+# is pushed, after the CI (ci.yml) passed. Run it by hand (workflow_dispatch) to publish the current version of a
+# branch.
+#
+# - @tbela99/rust-css-parser-napi: the javascript modules and the rust sources, without the addon: the addon is built
+#   on the client machine by the install script of the package (extensions/css-parser-napi/install.js)
+# - @tbela99/rust-css-parser-wasm: the javascript modules and the WebAssembly module
+#
+# Authentication:
+# - npm: trusted publishing (OIDC, configure this repository and workflow in the settings of each package on
+#   npmjs.com), or an automation token in the NPM_TOKEN secret
+# - JSR: OIDC, link this repository in the settings of each package on jsr.io
+
+name: publish
+
+on:
+  push:
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: .github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the rust toolchain (rustc, cargo) and the WebAssembly target
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component cargo --target wasm32-unknown-unknown
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.x'
+          package-manager-cache: false  # never use caching in release builds
+      - name: Install NPM dependencies
+        run: npm install --include=dev
+      # a tag must be the version of package.json
+      - name: Check the version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "the tag $GITHUB_REF_NAME is not the version of package.json ($version)" >&2
+            exit 1
+          fi
+      - name: Build
+        run: npm run build
+      # the packages as they are published: dist/ (without the N-API addon), rust/, the license
+      - name: Upload the packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          include-hidden-files: true
+          path: |
+            extensions/css-parser-napi/dist/
+            !extensions/css-parser-napi/dist/*.node
+            extensions/css-parser-napi/rust/
+            extensions/css-parser-napi/LICENSE.md
+            extensions/css-parser-wasm/dist/
+            extensions/css-parser-wasm/LICENSE.md
+
+  npm:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # trusted publishing and provenance
+    strategy:
+      fail-fast: false
+      matrix:
+        extension: [ css-parser-napi, css-parser-wasm ]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.x'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false  # never use caching in release builds
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: extensions
+      # the package was built and tested by the previous jobs: its scripts are not run
+      - name: Publish
+        working-directory: extensions/${{ matrix.extension }}
+        run: npm publish --provenance --access public --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  jsr:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC authentication with JSR
+    strategy:
+      fail-fast: false
+      matrix:
+        extension: [ css-parser-napi, css-parser-wasm ]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.x'
+          package-manager-cache: false  # never use caching in release builds
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: extensions
+      # JSR skips a version that is already published
+      - name: Publish
+        working-directory: extensions/${{ matrix.extension }}
+        run: npx --yes jsr@0.14.3 publish

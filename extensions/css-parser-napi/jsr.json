@@ -1,0 +1,26 @@
+{
+  "name": "@tbela99/rust-css-parser-napi",
+  "version": "2.2.1",
+  "license": "MIT",
+  "exports": {
+    ".": "./dist/node.js",
+    "./node": "./dist/node.js"
+  },
+  "publish": {
+    "include": [
+      "dist",
+      "rust",
+      "install.js",
+      "README.md",
+      "LICENSE.md",
+      "package.json"
+    ],
+    "exclude": [
+      "!dist",
+      "!rust",
+      "!LICENSE.md",
+      "dist/css_parser.node",
+      "rust/target"
+    ]
+  }
+}

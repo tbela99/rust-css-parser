@@ -433,7 +433,8 @@ async fn join_all<T>(mut futures: Vec<Pin<Box<dyn Future<Output = T>>>>) -> Vec<
             match futures[i].as_mut().poll(cx) {
                 std::task::Poll::Ready(v) => {
                     results.push(v);
-                    futures.remove(i);
+                    // the future is complete
+                    drop(futures.remove(i));
                 }
                 std::task::Poll::Pending => i += 1,
             }

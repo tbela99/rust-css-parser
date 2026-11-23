@@ -904,7 +904,6 @@ fn rebuild_errors(arena: &AstArena, tokens: &[u32], errors: &[CachedError], opti
         .collect()
 }
 
-/// validate the value of a declaration. the successful and the failed validations are cached by value encoding
 thread_local! {
     /// number of declaration values validated (cache misses), see [`declaration_validations`]
     static DECLARATION_VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -919,6 +918,7 @@ fn count_validation() {
     DECLARATION_VALIDATIONS.with(|c| c.set(c.get() + 1));
 }
 
+/// validate the value of a declaration. the successful and the failed validations are cached by value encoding
 pub fn match_declaration_syntax(arena: &AstArena, syntaxes: &[Syntax], tokens: &[u32], options: &ParserOptions) -> ValidationMatch {
     encode_value(arena, tokens);
     let cached = find_validation(arena, syntaxes);

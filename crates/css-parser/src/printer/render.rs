@@ -1551,7 +1551,7 @@ fn render_token(arena: &AstArena, token: u32, options: &RenderOptions, cache: Op
     let t = |x: u32| arena.data_types.get(x);
     let typ = t(token);
     let supports_options;
-    let (options, mut reducer) = if typ == EnumToken::WhenElseFunctionTokenType && arena.string_equals_ignore_case(arena.string_value.get(token), "supports") {
+    let (options, reducer) = if typ == EnumToken::WhenElseFunctionTokenType && arena.string_equals_ignore_case(arena.string_value.get(token), "supports") {
         supports_options = RenderOptions { minify_values: Some(false), minify: Some(false), convert_color: Some(ConvertColor::Bool(false)), ..options.clone() };
         (&supports_options, None)
     } else {
@@ -1703,7 +1703,6 @@ fn render_token(arena: &AstArena, token: u32, options: &RenderOptions, cache: Op
                         Some(r) => r,
                         None => {
                             own_reducer = Reducer::new(options, cache);
-                            reducer = Some(&own_reducer);
                             &own_reducer
                         }
                     };

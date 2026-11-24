@@ -17,3 +17,4 @@
 *.node
 # the rust sources of the N-API package, staged by build-bindings.sh
 /extensions/css-parser-napi/rust/
+/docs

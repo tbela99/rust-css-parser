@@ -24,7 +24,8 @@
   "scripts": {
     "build": "sh ../../build-bindings.sh wasm",
     "test": "cd ../.. && npm run test:wasm && npm run test:web",
-    "prepublishOnly": "cd ../.. && npm run build:wasm && npm run test:wasm"
+    "prepublishOnly": "cd ../.. && npm run build:wasm && npm run test:wasm",
+    "prepare": "node ../../scripts/prepare-extension.mjs wasm"
   },
   "author": "Thierry Bela",
   "repository": {

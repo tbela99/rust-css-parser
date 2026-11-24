@@ -27,7 +27,8 @@
     "install": "node install.js",
     "build": "sh ../../build-bindings.sh napi",
     "test": "cd ../.. && npm run test:napi",
-    "prepublishOnly": "cd ../.. && npm run build:napi && npm run test:napi"
+    "prepublishOnly": "cd ../.. && npm run build:napi && npm run test:napi",
+    "prepare": "node ../../scripts/prepare-extension.mjs napi"
   },
   "author": "Thierry Bela",
   "repository": {

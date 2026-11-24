@@ -478,8 +478,12 @@ Performance vs execution speed comparison
 | File:  tailwind.css   | Speed optimization | Minification optimization |
 | --------------------- | ------------------ | ------------------------- |
 | Size: 2,380,419 bytes | 1,888,460 bytes    | 1,624,148 bytes           |
-| Time                  | 109.07 ms          | 193.85 ms                 |
+| Time (N-API)          | 43.87 ms           | 88.97 ms                  |
+| Time (WASM)           | 54.50 ms           | 103.53 ms                 |
 | Size reduction        | -20.7%             | -31.8%                    |
+
+`transformSync()`, median of 15 runs, node 27, Apple silicon. The N-API addon and the WebAssembly module produce the
+same output.
 
 
 ------

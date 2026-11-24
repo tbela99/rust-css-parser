@@ -867,6 +867,23 @@ thread_local! {
 
 const MINIFIED_NUMBERS_SIZE: usize = 4096;
 
+/// run a function with the minified number: the cached string is borrowed (see [`minify_number`])
+pub fn with_minified_number<R>(val: f64, f: impl FnOnce(&str) -> R) -> R {
+    MINIFIED_NUMBERS.with(|cache| {
+        if let Some(result) = cache.borrow().get(&val.to_bits()) {
+            return f(result);
+        }
+        let result = minify_number_value(val);
+        let output = f(&result);
+        let mut cache = cache.borrow_mut();
+        if cache.len() >= MINIFIED_NUMBERS_SIZE {
+            cache.clear();
+        }
+        cache.insert(val.to_bits(), result);
+        output
+    })
+}
+
 /// minify a number
 pub fn minify_number(val: f64) -> String {
     MINIFIED_NUMBERS.with(|cache| {

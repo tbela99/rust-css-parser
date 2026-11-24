@@ -180,6 +180,11 @@ impl ContextData {
         Self { buffer: Rc::from(tokens), start: 0, index }
     }
 
+    /// a context over tokens, at an index (the compiled matchers, see `validation::compiled::runtime`)
+    pub(crate) fn from_tokens(tokens: Vec<u32>, index: isize) -> Self {
+        Self::new(tokens, index)
+    }
+
     /// the tokens of the context
     #[inline]
     pub fn tokens(&self) -> &[u32] {
@@ -401,6 +406,25 @@ impl ContextExt for Context {
 
 /// create a validation context: the comments are removed, the whitespace and `!important` are trimmed
 pub fn create_validation_context(arena: &AstArena, tokens: &[u32]) -> Context {
+    let t = |x: u32| arena.data_types.get(x);
+    if !tokens.iter().any(|&x| t(x) == EnumToken::CommentTokenType) {
+        // no comment: the trimmed range is copied once into the shared buffer of the context
+        let mut start = 0;
+        let mut end = tokens.len();
+        while start < end && t(tokens[start]) == EnumToken::WhitespaceTokenType {
+            start += 1;
+        }
+        while end > start && t(tokens[end - 1]) == EnumToken::WhitespaceTokenType {
+            end -= 1;
+        }
+        if end > start && t(tokens[end - 1]) == EnumToken::ImportantTokenType {
+            end -= 1;
+            while end > start && t(tokens[end - 1]) == EnumToken::WhitespaceTokenType {
+                end -= 1;
+            }
+        }
+        return Rc::new(RefCell::new(ContextData { buffer: Rc::from(&tokens[start..end]), start: 0, index: -1 }));
+    }
     let mut filtered: Vec<u32> = tokens.iter().copied().filter(|&t| arena.data_types.get(t) != EnumToken::CommentTokenType).collect();
     trim_array(arena, &mut filtered);
     if filtered.last().is_some_and(|&t| arena.data_types.get(t) == EnumToken::ImportantTokenType) {
@@ -468,8 +492,10 @@ pub fn match_selector_syntax(
     nested: bool,
 ) -> (bool, Vec<ErrorDescription>) {
     let fail = |message: String, token: u32| (false, vec![drop_error(arena, message, token, options)]);
-    let mut stack: Vec<u32> = Vec::new();
-    let mut tokens: Vec<u32> = Vec::new();
+    // pooled buffers: the tokens are swapped with the stream, the buffer of the stream returns to the pool
+    let mut stack = crate::utils::pool::PooledVec::new();
+    let mut tokens = crate::utils::pool::PooledVec::new();
+    tokens.reserve(stream.len());
     let mut i = 0usize;
     let mut success = true;
     let t = |x: u32| arena.data_types.get(x);
@@ -516,8 +542,9 @@ pub fn match_selector_syntax(
         match t(token) {
             EnumToken::PseudoClassFuncTokenType => {
                 let syntax = selector_function_syntax(arena, token);
-                let chi: Vec<Syntax> = syntax.as_ref().and_then(|s| s.first()).map(|f| f.children().to_vec()).unwrap_or_default();
-                let result = match_all_syntaxes(arena, Some(&chi), &create_validation_context(arena, &arena.tokens(token)), options);
+                // the children of the syntax are borrowed: the parsed syntax is shared (Rc)
+                let chi: &[Syntax] = syntax.as_ref().and_then(|s| s.first()).map_or(&[], |f| f.children());
+                let result = match_all_syntaxes(arena, Some(chi), &create_validation_context(arena, &arena.tokens(token)), options);
                 if !result.success {
                     success = false;
                     errors.extend(result.errors);
@@ -640,12 +667,12 @@ pub fn match_selector_syntax(
                 if matches!(top(&stack), Some(EnumToken::PseudoClassFunctionTokenDefType) | Some(EnumToken::PseudoElementTokenType)) {
                     let func = *stack.last().unwrap();
                     let index = tokens.iter().position(|&x| x == func).map_or(-1, |p| p as isize);
-                    let name = format!("{}()", arena.resolve_string(arena.string_value.get(func)));
-                    let syntax = get_parsed_syntax(ValidationSyntaxGroupEnum::Selectors, &name);
-                    let chi: Vec<Syntax> = syntax.as_ref().and_then(|s| s.first()).map(|f| f.children().to_vec()).unwrap_or_default();
+                    // looked up once per function name (`:name()`), the children of the syntax are borrowed
+                    let syntax = selector_function_syntax(arena, func);
+                    let chi: &[Syntax] = syntax.as_ref().and_then(|s| s.first()).map_or(&[], |f| f.children());
                     let end = tokens.len().saturating_sub(1);
                     let start = ((index + 1) as usize).min(end);
-                    let result = match_all_syntaxes(arena, Some(&chi), &create_validation_context(arena, &tokens[start..end]), options);
+                    let result = match_all_syntaxes(arena, Some(chi), &create_validation_context(arena, &tokens[start..end]), options);
                     if !result.success {
                         success = false;
                         errors.extend(result.errors);
@@ -679,10 +706,12 @@ pub fn match_selector_syntax(
     if let Some(&last) = stack.last() {
         return fail(format!("Unmatched token {}", token_type_name(t(last))), last);
     }
-    *stream = tokens;
+    // the buffer of the stream is replaced: no copy
+    std::mem::swap(stream, &mut *tokens);
     // typescript returns the array of the caller (`{ success, errors }`): the node errors of an invalid rule are the
-    // errors of the parse so far
-    (success, errors.clone())
+    // errors of the parse so far. the callers only read them when the selector is not valid: the list is not copied for
+    // a valid selector (a copy per selector is quadratic with the number of errors of the stylesheet)
+    (success, if success { Vec::new() } else { errors.clone() })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -716,10 +745,13 @@ struct EncodingState {
     epochs: Vec<u64>,
     encoding: Vec<f64>,
     hash: i32,
+    /// the encoded value contains a token the compiled matchers do not handle (var(), a custom function call, ...): the
+    /// interpreter validates it, see [`compiled_verdict`]
+    bail: bool,
 }
 
 thread_local! {
-    static ENCODING: RefCell<EncodingState> = RefCell::new(EncodingState { caches: HashMap::default(), epochs: Vec::new(), encoding: Vec::with_capacity(512), hash: 0 });
+    static ENCODING: RefCell<EncodingState> = RefCell::new(EncodingState { caches: HashMap::default(), epochs: Vec::new(), encoding: Vec::with_capacity(512), hash: 0, bail: false });
 }
 
 /// `value | 0`
@@ -739,6 +771,18 @@ fn encode(state: &mut EncodingState, value: f64) {
 
 fn encode_token(arena: &AstArena, state: &mut EncodingState, token: u32) {
     let typ = arena.data_types.get(token);
+    if matches!(
+        typ,
+        EnumToken::WildCardFunctionTokenType
+            | EnumToken::WildCardFunctionTokenDefType
+            | EnumToken::CustomFunctionTokenType
+            | EnumToken::CustomFunctionTokenDefType
+            | EnumToken::BadCdoTokenType
+            | EnumToken::BadCommentTokenType
+            | EnumToken::BadStringTokenType
+    ) {
+        state.bail = true;
+    }
     encode(state, typ as f64);
     encode(state, arena.name.get(token) as f64);
     encode(state, if typ == EnumToken::StringTokenType { 0.0 } else { arena.string_value.get(token) as f64 });
@@ -767,6 +811,7 @@ fn encode_value(arena: &AstArena, tokens: &[u32]) {
         let mut state = e.borrow_mut();
         state.encoding.clear();
         state.hash = 0x811c9dc5u32 as i32;
+        state.bail = false;
         for &t in tokens {
             encode_token(arena, &mut state, t);
         }
@@ -904,7 +949,6 @@ fn rebuild_errors(arena: &AstArena, tokens: &[u32], errors: &[CachedError], opti
         .collect()
 }
 
-/// validate the value of a declaration. the successful and the failed validations are cached by value encoding
 thread_local! {
     /// number of declaration values validated (cache misses), see [`declaration_validations`]
     static DECLARATION_VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
@@ -919,6 +963,121 @@ fn count_validation() {
     DECLARATION_VALIDATIONS.with(|c| c.set(c.get() + 1));
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// compiled matchers
+// ---------------------------------------------------------------------------------------------------------------------
+
+/// the number of values validated by the compiled matchers, see [`compiled_stats`]
+#[derive(Clone, Debug, Default)]
+pub struct CompiledStats {
+    /// valid: the answer of the compiled matcher is final
+    pub valid: usize,
+    /// deferred to the interpreter
+    pub deferred: usize,
+    /// deferred: the value contains var(), a custom function, ...
+    pub bail: usize,
+    /// deferred: the syntax is not compiled
+    pub uncompiled: usize,
+    /// deferred: the compiled matcher rejected the value, the interpreter accepted it (verified mode)
+    pub rejected_valid: usize,
+    /// (syntax, value) of the values rejected by a compiled matcher and accepted by the interpreter (verified mode)
+    pub rejected_valid_samples: Vec<(String, String)>,
+    /// (syntax, value) of the values accepted by a compiled matcher and rejected by the interpreter (verified mode)
+    pub mismatches: Vec<(String, String)>,
+}
+
+thread_local! {
+    /// 0: the compiled matchers are not used, 1: used (a valid answer is final), 2: verified by the interpreter
+    static COMPILED_MODE: std::cell::Cell<u8> = const { std::cell::Cell::new(1) };
+    static COMPILED_STATS: RefCell<CompiledStats> = RefCell::new(CompiledStats::default());
+    /// the compiled definition of the syntaxes (by address), None when they are not compiled
+    static COMPILED_DEFINITIONS: RefCell<HashMap<(usize, usize), Option<u32>>> = RefCell::new(HashMap::default());
+}
+
+/// use the compiled matchers (see [`crate::validation::compiled`]): 0 not used, 1 used, 2 verified by the interpreter
+/// (see [`compiled_stats`])
+pub fn set_compiled_validation(mode: u8) {
+    COMPILED_MODE.with(|m| m.set(mode));
+}
+
+/// the number of values validated by the compiled matchers on this thread, and the disagreements with the interpreter
+/// (verified mode, see [`set_compiled_validation`])
+pub fn compiled_stats() -> CompiledStats {
+    COMPILED_STATS.with(|s| s.borrow().clone())
+}
+
+/// the text of a value, for the reports
+fn value_text(arena: &AstArena, tokens: &[u32]) -> String {
+    tokens.iter().map(|&t| crate::printer::render::render_value_default(arena, t)).collect()
+}
+
+/// true if the value is valid according to the compiled matcher of the syntax. false: the interpreter must validate it
+/// (the value may be valid). the value must be encoded (see [`encode_value`])
+fn compiled_verdict(arena: &AstArena, syntaxes: &[Syntax], tokens: &[u32], options: &ParserOptions) -> bool {
+    let mode = COMPILED_MODE.with(|m| m.get());
+    if mode == 0 {
+        return false;
+    }
+    if ENCODING.with(|e| e.borrow().bail) {
+        COMPILED_STATS.with(|s| {
+            let mut s = s.borrow_mut();
+            s.deferred += 1;
+            s.bail += 1;
+        });
+        return false;
+    }
+    let definition = COMPILED_DEFINITIONS.with(|c| {
+        *c.borrow_mut()
+            .entry(syntaxes_key(syntaxes))
+            .or_insert_with(|| super::config::syntax_key(syntaxes).and_then(|key| super::compiled::runtime::compiled_definition(&key)))
+    });
+    let Some(definition) = definition else {
+        COMPILED_STATS.with(|s| {
+            let mut s = s.borrow_mut();
+            s.deferred += 1;
+            s.uncompiled += 1;
+        });
+        return false;
+    };
+    let valid = super::compiled::runtime::match_compiled(arena, definition, tokens, options);
+    if mode == 2 {
+        // the validation may encode other values
+        let saved = ENCODING.with(|e| {
+            let e = e.borrow();
+            (e.encoding.clone(), e.hash, e.bail)
+        });
+        let interpreted = match_all_syntaxes(arena, Some(syntaxes), &create_validation_context(arena, tokens), options).success;
+        ENCODING.with(|e| {
+            let mut e = e.borrow_mut();
+            e.encoding = saved.0;
+            e.hash = saved.1;
+            e.bail = saved.2;
+        });
+        if valid != interpreted {
+            let sample = (super::config::syntax_key(syntaxes).unwrap_or_default(), value_text(arena, tokens));
+            COMPILED_STATS.with(|s| {
+                let mut s = s.borrow_mut();
+                if valid {
+                    s.mismatches.push(sample);
+                } else {
+                    s.rejected_valid += 1;
+                    s.rejected_valid_samples.push(sample);
+                }
+            });
+        }
+    }
+    COMPILED_STATS.with(|s| {
+        let mut s = s.borrow_mut();
+        if valid {
+            s.valid += 1;
+        } else {
+            s.deferred += 1;
+        }
+    });
+    valid
+}
+
+/// validate the value of a declaration. the successful and the failed validations are cached by value encoding
 pub fn match_declaration_syntax(arena: &AstArena, syntaxes: &[Syntax], tokens: &[u32], options: &ParserOptions) -> ValidationMatch {
     encode_value(arena, tokens);
     let cached = find_validation(arena, syntaxes);
@@ -929,6 +1088,12 @@ pub fn match_declaration_syntax(arena: &AstArena, syntaxes: &[Syntax], tokens: &
         if let Some(errors) = &cached.errors {
             return ValidationMatch::new(false, true, None, None, None, rebuild_errors(arena, &value_tokens(arena, tokens), errors, options));
         }
+    }
+    if cached.is_none() && compiled_verdict(arena, syntaxes, tokens, options) {
+        let (offset, length, hash) = store_encoding(arena);
+        count_validation();
+        cache_validation(arena, syntaxes, offset, length, hash, true, None);
+        return ValidationMatch::new(true, true, None, None, None, Vec::new());
     }
     // the encoding is stored before the validation, which may encode other values
     let (offset, length, hash) = store_encoding(arena);
@@ -954,6 +1119,12 @@ pub fn is_valid_declaration_value(arena: &AstArena, syntaxes: &[Syntax], declara
     encode_value(arena, &tokens);
     if let Some(cached) = find_validation(arena, syntaxes) {
         return cached.valid;
+    }
+    if compiled_verdict(arena, syntaxes, &tokens, options) {
+        let (offset, length, hash) = store_encoding(arena);
+        count_validation();
+        cache_validation(arena, syntaxes, offset, length, hash, true, None);
+        return true;
     }
     let (offset, length, hash) = store_encoding(arena);
     count_validation();

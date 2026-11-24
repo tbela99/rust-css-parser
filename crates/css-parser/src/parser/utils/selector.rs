@@ -1,7 +1,8 @@
 //! Port of `src/parser/utils/selector.ts`.
 
 use crate::ast::arena::{AstArena, StrOrId, TokenValue};
-use crate::ast::strings::StringBuilder;
+use crate::ast::strings::{StringBuilder, StringDerived};
+use crate::utils::pool::PooledVec;
 use crate::ast::types::{EnumAstNodeStatus, EnumToken};
 use crate::options::ParserOptions;
 use crate::parser::utils::text::equals_ignore_case;
@@ -9,8 +10,8 @@ use crate::printer::render::render_value;
 use crate::syntax::constants::{is_function_def_type, tokens_func_def_map, COMBINATORS, PSEUDO_ELEMENTS};
 use crate::syntax::syntax::{is_hash, is_ident};
 use crate::types::ErrorDescription;
-use crate::validation::config::{get_parsed_syntax, get_syntax_config, get_syntax_rule};
-use crate::validation::match_::{create_validation_context, match_all_syntaxes, match_selector_syntax, trim_array};
+use crate::validation::config::{get_parsed_syntax, get_syntax_rule};
+use crate::validation::match_::{create_validation_context, match_all_syntaxes, match_selector_syntax, selector_function_syntax, trim_array};
 use crate::validation::parser::typedef::{ValidationSyntaxGroupEnum, ValidationTokenEnum};
 use crate::validation::utils::list::split_token_list_comma;
 use std::cell::RefCell;
@@ -69,8 +70,10 @@ fn js_sign(n: f64) -> f64 {
 /// minify the an+b expression of a pseudo class function
 fn minify_nth_expression(arena: &AstArena, func: u32) {
     let t = |x: u32| arena.data_types.get(x);
-    let mut chi = arena.tokens(func);
-    let mut list: Vec<u32> = Vec::new();
+    // pooled buffers: no allocation per selector function
+    let mut chi = PooledVec::new();
+    chi.extend(arena.token_iter(func));
+    let mut list = PooledVec::new();
     let mut index: isize = 0;
     while (index as usize) < chi.len() {
         let c = chi[index as usize];
@@ -180,13 +183,15 @@ fn minify_nth_expression(arena: &AstArena, func: u32) {
             }
             if let Some(num) = num {
                 if arena.numeric_value.get(num) == 0.0 {
-                    chi.drain(index + 1..(i + 1).min(chi.len()));
+                    let end = (i + 1).min(chi.len());
+                    chi.drain(index + 1..end);
                     if arena.numeric_value.get(token) < 0.0 {
                         arena.numeric_value.set(token, arena.numeric_value.get(token) * -1.0);
                     }
                 } else if arena.numeric_value.get(token) == 2.0 && arena.numeric_value.get(num).abs() == 1.0 {
                     arena.reset_token(token, EnumToken::IdenTokenType, TokenValue::Str("odd"), None);
-                    chi.drain(index + 1..(i + 1).min(chi.len()));
+                    let end = (i + 1).min(chi.len());
+                    chi.drain(index + 1..end);
                 }
             }
         }
@@ -292,21 +297,20 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
         locate(arena, node, tokens);
         return node;
     }
-    let mut stack: Vec<u32> = Vec::new();
+    let mut stack = PooledVec::new();
     let mut allowed = true;
     let mut nested = false;
     if context_type != Some(EnumToken::StyleSheetNodeType) && context_type != Some(EnumToken::RuleNodeType) {
         allowed = false;
         if context_type == Some(EnumToken::AtRuleNodeType) {
-            let rule = get_syntax_rule(ValidationSyntaxGroupEnum::AtRules, &format!("@{}", arena.get_name(context.unwrap())));
-            allowed = rule.as_ref().is_some_and(|r| r.accept_any_rule);
-            if !allowed {
-                if let Some(rules) = rule.and_then(|r| r.get_block_rules()) {
-                    allowed = rules
-                        .iter()
-                        .any(|r| r.typ == ValidationTokenEnum::PropertyType && matches!(r.val_str(), "block-contents" | "rule-list"));
-                }
-            }
+            // computed once per at-rule name: the name is not formatted for each selector
+            allowed = arena.string_derived(arena.name.get(context.unwrap()), StringDerived::AtRuleAcceptsRules, |id| {
+                let rule = get_syntax_rule(ValidationSyntaxGroupEnum::AtRules, &format!("@{}", arena.resolve_string(id)));
+                rule.as_ref().is_some_and(|r| r.accept_any_rule)
+                    || rule.and_then(|r| r.get_block_rules()).is_some_and(|rules| {
+                        rules.iter().any(|r| r.typ == ValidationTokenEnum::PropertyType && matches!(r.val_str(), "block-contents" | "rule-list"))
+                    })
+            });
         }
     }
     let mut parent = context.unwrap_or(0);
@@ -321,9 +325,10 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
         }
         parent = arena.parents.get(parent);
     }
-    let mut all: Vec<u32> = Vec::with_capacity(tokens.len());
+    // a pooled buffer: it is swapped with the tokens, the buffer of the tokens returns to the pool
+    let mut all = PooledVec::new();
+    all.reserve(tokens.len());
     let mut read = 0;
-    let selectors = &get_syntax_config()["selectors"];
     while read < tokens.len() {
         let token = tokens[read];
         let next = tokens.get(read + 1).copied();
@@ -345,12 +350,17 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
             }
             if nt == Some(EnumToken::FunctionTokenDefType) {
                 let next = next.unwrap();
-                let val = format!(":{}", arena.resolve_string(arena.string_value.get(next)));
+                let id = with_builder(|b| {
+                    b.reset().append_code(0x3a);
+                    arena.append_string(b, arena.string_value.get(next));
+                    arena.intern_builder(b)
+                });
+                arena.string_value.set(token, id);
+                // `:name()` is a selector function: looked up once per name
                 arena.data_types.set(
                     token,
-                    if selectors.get(format!("{}()", val)).is_some() { EnumToken::PseudoClassFunctionTokenDefType } else { t(next) },
+                    if selector_function_syntax(arena, token).is_some() { EnumToken::PseudoClassFunctionTokenDefType } else { t(next) },
                 );
-                arena.string_value.set(token, arena.intern_string(&val));
                 arena.span_location(token, token, next);
                 all.push(token);
                 read += 2;
@@ -378,12 +388,16 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
             }
             if nt == Some(EnumToken::FunctionTokenDefType) {
                 let next = next.unwrap();
-                let val = format!("::{}", arena.resolve_string(arena.string_value.get(next)));
+                let id = with_builder(|b| {
+                    b.reset().append_code(0x3a).append_code(0x3a);
+                    arena.append_string(b, arena.string_value.get(next));
+                    arena.intern_builder(b)
+                });
+                arena.string_value.set(token, id);
                 arena.data_types.set(
                     token,
-                    if selectors.get(format!("{}()", val)).is_some() { EnumToken::PseudoClassFunctionTokenDefType } else { EnumToken::FunctionTokenDefType },
+                    if selector_function_syntax(arena, token).is_some() { EnumToken::PseudoClassFunctionTokenDefType } else { EnumToken::FunctionTokenDefType },
                 );
-                arena.string_value.set(token, arena.intern_string(&val));
                 arena.span_location(token, token, next);
                 all.push(token);
                 read += 2;
@@ -411,7 +425,8 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
         all.push(token);
         read += 1;
     }
-    *tokens = all;
+    std::mem::swap(tokens, &mut *all);
+    drop(all);
     let (success, result_errors) = match_selector_syntax(arena, tokens, errors, options, nested);
     trim_array(arena, tokens);
     if success {
@@ -428,8 +443,9 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
                         tokens.remove(i as usize);
                         arena.data_types.set(attr, EnumToken::AttrTokenType);
                         arena.string_value.set(attr, 0);
-                        let inner: Vec<u32> = tokens.drain((index + 1) as usize..i as usize).collect();
-                        arena.set_token_list(attr, &inner);
+                        // the tokens are read in place, then removed
+                        arena.set_token_list(attr, &tokens[(index + 1) as usize..i as usize]);
+                        tokens.drain((index + 1) as usize..i as usize);
                         i = index;
                         stack.pop();
                     }
@@ -442,9 +458,13 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
                         tokens.remove(i as usize);
                         if is_function_def_type(t(func)) {
                             arena.data_types.set(func, tokens_func_def_map(t(func)).unwrap_or(0));
-                            let mut inner: Vec<u32> = tokens.drain((index + 1) as usize..i as usize).collect();
-                            trim_array(arena, &mut inner);
-                            arena.set_token_list(func, &inner);
+                            // the trimmed range is read in place, then the tokens are removed
+                            let range = &tokens[(index + 1) as usize..i as usize];
+                            let ws = |x: &u32| t(*x) == EnumToken::WhitespaceTokenType;
+                            let start = range.iter().position(|x| !ws(x)).unwrap_or(range.len());
+                            let end = range.iter().rposition(|x| !ws(x)).map_or(start, |e| e + 1);
+                            arena.set_token_list(func, &range[start..end]);
+                            tokens.drain((index + 1) as usize..i as usize);
                         }
                         if options.minify == Some(true) {
                             let is_nth = arena.with_string(arena.string_value.get(func), |n| {

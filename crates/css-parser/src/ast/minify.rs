@@ -841,12 +841,20 @@ pub fn optimize_selector(selector: &[Vec<String>]) -> Option<OptimizedSelector> 
         let reducible = selector.len() > 1 && selector.iter().all(|s| s.first().is_none_or(|f| !is_combinator(f)));
         let selector = selector
             .into_iter()
-            .map(|s| if s.first().map(String::as_str) == Some("&") && s.get(1).map(String::as_str) == Some(" ") { s[2..].to_vec() } else { s })
+            .map(|mut s| {
+                // the leading `& ` is removed in place
+                if s.first().map(String::as_str) == Some("&") && s.get(1).map(String::as_str) == Some(" ") {
+                    s.drain(0..2);
+                }
+                s
+            })
             .collect();
         return Some(OptimizedSelector { match_: false, optimized, selector, reducible });
     }
-    let mut result: Vec<Vec<String>> = Vec::new();
-    for curr in selector.iter_mut() {
+    let mut result: Vec<Vec<String>> = Vec::with_capacity(selector.len());
+    let mut reducible = true;
+    // the selectors are moved into the result
+    for mut curr in selector {
         let mut has_compound = true;
         if !curr.is_empty() {
             let c0 = char_at0(&curr[0]);
@@ -860,15 +868,12 @@ pub fn optimize_selector(selector: &[Vec<String>]) -> Option<OptimizedSelector> 
             curr.push("&".into());
             has_compound = false;
         }
-        result.push(if has_compound {
-            let mut v = vec!["&".to_string()];
-            v.extend(curr.iter().cloned());
-            v
-        } else {
-            curr.clone()
-        });
+        reducible &= curr.first().is_none_or(|f| !matches!(f.as_str(), ">" | "+" | "~" | "&"));
+        if has_compound {
+            curr.insert(0, "&".to_string());
+        }
+        result.push(curr);
     }
-    let reducible = selector.iter().all(|s| s.first().is_none_or(|f| !matches!(f.as_str(), ">" | "+" | "~" | "&")));
     Some(OptimizedSelector { match_: true, optimized, selector: result, reducible })
 }
 
@@ -1188,7 +1193,8 @@ fn wrap_nodes(arena: &AstArena, previous: u32, node: u32, mut m: MatchedSelector
     let wrapper = arena.clone_node(previous);
     let mut match_copy = m.match_.clone();
     set_selector(arena, wrapper, &reduce_join(&mut match_copy));
-    arena.raw.borrow_mut().insert(wrapper, Rc::<RawSelector>::new(RawSelector::from(m.match_.clone())));
+    // the matched selector is moved: reduce_join() modified its copy
+    arena.raw.borrow_mut().insert(wrapper, Rc::<RawSelector>::new(RawSelector::from(m.match_)));
     // not copied by cloneNode()
     arena.optimized.borrow_mut().remove(&wrapper);
     arena.set_token_list(wrapper, &[]);

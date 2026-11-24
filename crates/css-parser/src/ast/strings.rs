@@ -15,6 +15,7 @@ use crate::parser::utils::canonical::{canonical_code_at, with_canonical_text};
 use crate::parser::utils::codes::{hash_range, hash_string, CodeUnits};
 use std::any::Any;
 use crate::utils::fx::HashMap;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// where the code units of an interned string are stored. a value that is not negative is the index of a source
@@ -47,6 +48,8 @@ pub enum StringDerived {
     FunctionSyntax = 0,
     SelectorFunctionSyntax = 1,
     TransformKind = 2,
+    /// true if the rules are allowed in the block of an at-rule (by name, without `@`), see `parse_selector()`
+    AtRuleAcceptsRules = 3,
 }
 
 /// copy of a string table, see [`StringTable::export`]
@@ -118,6 +121,23 @@ impl StringBuilder {
     pub fn intern(&self, table: &mut StringTable) -> u32 {
         table.intern_units(&self.codes)
     }
+}
+
+thread_local! {
+    /// the buffers of [`with_decoded`]: a stack, a decoded string may be read while another one is decoded
+    static DECODED: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// run a function with utf-16 code units decoded into a reused buffer (`String::from_utf16_lossy()` without allocating)
+fn with_decoded<R>(units: &[u16], f: impl FnOnce(&str) -> R) -> R {
+    let mut buffer = DECODED.with(|d| d.borrow_mut().pop()).unwrap_or_default();
+    buffer.clear();
+    buffer.extend(char::decode_utf16(units.iter().copied()).map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER)));
+    let result = f(&buffer);
+    if buffer.capacity() <= 1 << 16 {
+        DECODED.with(|d| d.borrow_mut().push(buffer));
+    }
+    result
 }
 
 /// a string shared without a copy: a shared string, or a range of the bytes of an ascii source (the source buffer is
@@ -517,6 +537,17 @@ impl StringTable {
             } else if source == StringSource::Canonical {
                 let (s, e) = (self.starts[i] as usize, self.ends[i] as usize);
                 return with_canonical_text(|t| f(&t[s..e]));
+            }
+            // utf-16 code units (a source that is not ascii, the pool): decoded into a reused buffer, no string is
+            // created
+            let (s, e) = (self.starts[i] as usize, self.ends[i] as usize);
+            if source == StringSource::Pool {
+                return with_decoded(&self.pool[s..e], f);
+            }
+            if source >= 0 {
+                if let Some(CodeUnits::Utf16(units)) = self.texts.get(source as usize).and_then(|t| t.as_ref()) {
+                    return with_decoded(&units[s..e], f);
+                }
             }
         }
         f(&self.peek(id))

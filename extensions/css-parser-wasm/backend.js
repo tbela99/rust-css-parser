@@ -38,10 +38,13 @@ export async function createBackend() {
     });
     const exports = instance.exports;
     const memory = exports.memory;
+    // the pointers and the lengths are i32 values: the addresses above 2 GB of the linear memory (up to 4 GB) are
+    // negative numbers, they are read as unsigned
+    const u32 = (value) => value >>> 0;
 
     return {
         exchange(capacity) {
-            const ptr = exports.css_buffer(capacity);
+            const ptr = u32(exports.css_buffer(capacity));
             return new Uint8Array(memory.buffer, ptr, capacity);
         },
         invoke(length) {
@@ -52,23 +55,23 @@ export async function createBackend() {
         },
         column(handle, index) {
             const Type = columnTypes[index];
-            const length = exports.css_column_len(handle, index);
+            const length = u32(exports.css_column_len(handle, index));
 
             if (length === 0) {
                 return new Type(0);
             }
 
-            return new Type(memory.buffer, exports.css_column_ptr(handle, index), length);
+            return new Type(memory.buffer, u32(exports.css_column_ptr(handle, index)), length);
         },
         generation(handle) {
-            return new Uint32Array(memory.buffer, exports.css_generation_ptr(handle), 1);
+            return new Uint32Array(memory.buffer, u32(exports.css_generation_ptr(handle)), 1);
         },
         output(id) {
             // the linear memory cannot be given away: one copy
-            const length = exports.css_output_take(id);
+            const length = u32(exports.css_output_take(id));
             const buffer = new ArrayBuffer(length);
 
-            new Uint8Array(buffer).set(new Uint8Array(memory.buffer, exports.css_output_ptr(), length));
+            new Uint8Array(buffer).set(new Uint8Array(memory.buffer, u32(exports.css_output_ptr()), length));
             exports.css_output_free();
             return buffer;
         },

@@ -2,7 +2,7 @@
 
 use super::config::{get_parsed_syntax, get_syntax, get_syntax_config, has_syntax};
 use super::match_::{
-    create_validation_context, is_css_wide_keyword, match_selector_syntax, Context, ContextExt, Syntax, ValidationMatch,
+    create_validation_context, is_css_wide_keyword, match_selector_syntax, Context, ContextExt, Syntax, ValidationMatch, function_syntax,
 };
 use super::match_syntax::{match_syntax, peek_feature_tokens};
 use super::parser::typedef::ValidationSyntaxGroupEnum;
@@ -25,8 +25,9 @@ fn ko(context: &Context, token: Option<u32>, property: &Syntax) -> ValidationMat
     ValidationMatch::new(false, true, token, Some(context.clone()), Some(property.clone()), Vec::new())
 }
 
-fn first_chi(syntax: Option<Rc<Vec<Syntax>>>) -> Option<Vec<Syntax>> {
-    syntax.and_then(|s| s.first().map(|f| f.children().to_vec()))
+/// first item of a function syntax (`name()`): the arguments are its children, borrowed by the callers
+fn function_head(syntax: Option<Rc<Vec<Syntax>>>) -> Option<Syntax> {
+    syntax.and_then(|s| s.first().cloned())
 }
 
 fn is_integer(n: f64) -> bool {
@@ -87,9 +88,11 @@ pub fn match_property(arena: &AstArena, property: &Syntax, context: &Context, op
     }
     if check_calc {
         let tk = token.unwrap();
-        let syntax = first_chi(get_parsed_syntax(ValidationSyntaxGroupEnum::Syntaxes, &format!("{}()", str_of(tk))));
+        // looked up once per function name
+        let head = function_head(function_syntax(arena, tk));
+        let syntax = head.as_ref().map(|f| f.children());
         if t == EnumToken::MathFunctionTokenType {
-            let r = match_syntax(arena, syntax.as_deref(), &create_validation_context(arena, &arena.tokens(tk)), options);
+            let r = match_syntax(arena, syntax, &create_validation_context(arena, &arena.tokens(tk)), options);
             if r.success && r.ctx().done(arena) {
                 context.next_token(arena);
                 return ok(context, token);
@@ -97,7 +100,7 @@ pub fn match_property(arena: &AstArena, property: &Syntax, context: &Context, op
         } else {
             let range = context.borrow().peek_range(arena, EnumToken::EndParensTokenType, 0);
             let inner: &[u32] = if range.len() >= 2 { &range[1..range.len() - 1] } else { &[] };
-            let r = match_syntax(arena, syntax.as_deref(), &create_validation_context(arena, inner), options);
+            let r = match_syntax(arena, syntax, &create_validation_context(arena, inner), options);
             if r.success {
                 context.update(range.last().copied());
                 return ok(context, range.last().copied());

@@ -75,6 +75,31 @@ thread_local! {
         RefCell::new((0..GROUPS).map(|_| HashMap::default()).collect());
 }
 
+thread_local! {
+    /// the definition node of a parsed syntax (by the address of its tokens), see [`syntax_key`]
+    static SYNTAX_NODES: RefCell<HashMap<usize, usize>> = RefCell::new(HashMap::default());
+    /// the key of the definitions that are compiled (`group/name`), by definition node, see [`syntax_key`]
+    static NODE_KEYS: HashMap<usize, String> = {
+        let config = config_json();
+        let mut keys = HashMap::default();
+        for group in ["declarations", "syntaxes", "types"] {
+            if let Some(entries) = config[group].as_object() {
+                for (key, value) in entries {
+                    keys.insert(value as *const serde_json::Value as usize, format!("{}/{}", group, key));
+                }
+            }
+        }
+        keys
+    };
+}
+
+/// the key of the definition of a parsed syntax (`declarations/width`, `types/color`), see `scripts/compile_syntax.rs`.
+/// None if the syntax is not the syntax of a declaration, a type or a function (a descriptor, ...)
+pub fn syntax_key(syntaxes: &[Rc<ValidationToken>]) -> Option<String> {
+    let node = SYNTAX_NODES.with(|n| n.borrow().get(&(syntaxes.as_ptr() as usize)).copied())?;
+    NODE_KEYS.with(|k| k.get(&node).cloned())
+}
+
 /// true if a type or a function syntax is defined
 pub fn has_syntax(key: &str) -> bool {
     if let Some(defined) = DEFINED_SYNTAXES.with(|d| d.borrow().get(key).copied()) {
@@ -132,6 +157,7 @@ pub fn get_parsed_syntax(group: ValidationSyntaxGroupEnum, key: &str) -> Option<
         trim_syntax_array(&mut tokens);
         let parsed = Rc::new(tokens);
         PARSED_SYNTAXES.with(|p| p.borrow_mut().insert(id, parsed.clone()));
+        SYNTAX_NODES.with(|n| n.borrow_mut().insert(parsed.as_ptr() as usize, id));
         parsed
     });
     PARSED_BY_KEY.with(|c| c.borrow_mut()[group as usize].insert(Box::from(key), result.clone()));

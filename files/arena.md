@@ -154,14 +154,15 @@ of `parse()` / `transform()`) and its memory is reclaimed by the garbage collect
 
 #### Example
 
-tailwind.css (2.4 MB), `transform()` with the default settings, node v22:
+tailwind.css (2.4 MB), `transformSync()` with the default settings, node 27. The N-API addon and the WebAssembly module
+report the same values:
 
 | step                                         | `getCapacity()` | `getLastId()` | `getStringCount()` | columns |
 |----------------------------------------------|----------------:|--------------:|-------------------:|--------:|
-| after `transform()`                          |         621,937 |       304,289 |             35,869 | 36.8 MB |
-| after 10 more `render()`                     |         621,937 |       305,319 |             35,869 | 36.8 MB |
-| after a `render()` with `expandNestingRules` |         621,937 |       537,055 |             36,863 | 36.8 MB |
-| after `arena.compact()`                      |         226,604 |       219,737 |             27,559 | 13.4 MB |
+| after `transformSync()`                      |         596,129 |       291,782 |             35,874 | 35.2 MB |
+| after 10 more `render()`                     |         596,129 |       293,782 |             35,874 | 35.2 MB |
+| after a `render()` with `expandNestingRules` |         596,129 |       524,665 |             36,868 | 35.2 MB |
+| after `arena.compact()`                      |         225,625 |       218,787 |             27,556 | 13.3 MB |
 
 ### Caches and compaction
 

@@ -433,7 +433,8 @@ async fn join_all<T>(mut futures: Vec<Pin<Box<dyn Future<Output = T>>>>) -> Vec<
             match futures[i].as_mut().poll(cx) {
                 std::task::Poll::Ready(v) => {
                     results.push(v);
-                    futures.remove(i);
+                    // the future is complete
+                    drop(futures.remove(i));
                 }
                 std::task::Poll::Pending => i += 1,
             }
@@ -1121,7 +1122,7 @@ async fn process_module(result: &mut ParseResult, options: &ParserOptions, host:
                     result.errors.push(ErrorDescription::drop(format!("could not resolve @value import from '{}'", from)).with_node(node));
                 }
                 Some(vars) => {
-                    for token in a.tokens(node) {
+                    for token in a.token_iter(node) {
                         if t(token) == EnumToken::IdenTokenType || is_ident_color(a, token) {
                             let name = s(a.string_value.get(token));
                             match vars.iter().find(|(k, _)| *k == name) {
@@ -1186,7 +1187,7 @@ async fn process_module(result: &mut ParseResult, options: &ParserOptions, host:
                                 rev_mapping.set(&mapped, rv.clone());
                             }
                             if parent_rule != 0 {
-                                for tk in a.tokens(parent_rule) {
+                                for tk in a.token_iter(parent_rule) {
                                     if t(tk) == EnumToken::ClassSelectorTokenType {
                                         let val: String = s(a.string_value.get(tk)).chars().skip(1).collect();
                                         if let Some(key) = rev_mapping.get(&val).map(String::from) {
@@ -1234,7 +1235,7 @@ async fn process_module(result: &mut ParseResult, options: &ParserOptions, host:
                             }
                         }
                         if parent_rule != 0 {
-                            for tk in a.tokens(parent_rule) {
+                            for tk in a.token_iter(parent_rule) {
                                 if t(tk) == EnumToken::ClassSelectorTokenType {
                                     let val: String = s(a.string_value.get(tk)).chars().skip(1).collect();
                                     if let Some(key) = rev_mapping.get(&val).map(String::from) {
@@ -1267,7 +1268,7 @@ async fn process_module(result: &mut ParseResult, options: &ParserOptions, host:
                     } else if t(a.field(token, TokenField::R)) == EnumToken::IdenTokenType && parent_rule != 0 {
                         let from = a.field(token, TokenField::R);
                         if equals_ignore_case("global", &s(a.string_value.get(from))) {
-                            for tk in a.tokens(parent_rule) {
+                            for tk in a.token_iter(parent_rule) {
                                 if t(tk) == EnumToken::ClassSelectorTokenType {
                                     let val: String = s(a.string_value.get(tk)).chars().skip(1).collect();
                                     if let Some(key) = rev_mapping.get(&val).map(String::from) {
@@ -1320,7 +1321,7 @@ async fn process_module(result: &mut ParseResult, options: &ParserOptions, host:
                     a.string_value.set(value, a.intern_string(mapping.get(&iden).unwrap_or("undefined")));
                 }
             } else if name == "grid-template-areas" || name == "grid-template" {
-                for token in a.tokens(node) {
+                for token in a.token_iter(node) {
                     if t(token) == EnumToken::StringTokenType {
                         let str = s(a.string_value.get(token));
                         let tokens = parse_string(a, &unquote(&str));

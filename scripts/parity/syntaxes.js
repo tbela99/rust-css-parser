@@ -1,6 +1,6 @@
 // render every syntax of the validation data after parsing it (parity check with src/bin/syntaxes.rs)
 // the typescript sources are used (renderSyntax is not exported by the build): run with tsx
-// usage: <ts project>/node_modules/.bin/tsx scripts/parity/syntaxes.mjs <ts project>/src
+// usage: <ts project>/node_modules/.bin/tsx scripts/parity/syntaxes.js <ts project>/src
 import { readFileSync } from "node:fs";
 const src = process.argv[2];
 await import(`${src}/node.ts`);

@@ -1,4 +1,4 @@
-//! render every syntax of the validation data after parsing it (parity check, see scripts/parity/syntaxes.mjs)
+//! render every syntax of the validation data after parsing it (parity check, see scripts/parity/syntaxes.js)
 use rust_css_parser::validation::json::config_json;
 use rust_css_parser::validation::parser::parse::{parse_syntax, render_syntax, RenderSyntaxOptions};
 

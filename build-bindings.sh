@@ -40,6 +40,10 @@ assemble() {
     mkdir -p "$dist"
     cp -R bindings/. "$dist/"
     cp "extensions/css-parser-$1/backend.js" "$dist/"
+    # the declarations (bindings/index.d.ts, see scripts/gen-types.js): the examples import the package
+    sed -e "s#from '@tbela99/css-parser'#from '@tbela99/rust-css-parser-$1'#g" \
+        -e "s#from \"@tbela99/css-parser\"#from \"@tbela99/rust-css-parser-$1\"#g" \
+        bindings/index.d.ts > "$dist/index.d.ts"
     # npm and jsr publish the license of the package directory
     cp LICENSE.md "extensions/css-parser-$1/LICENSE.md"
 }

@@ -1,3 +1,4 @@
+/* @ts-self-types="./index.d.ts" */
 // browser entry point (port of src/web.ts)
 import { createApi } from "./api.js";
 import { getRuntime } from "./core.js";

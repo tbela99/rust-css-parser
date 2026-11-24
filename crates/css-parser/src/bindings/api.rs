@@ -229,7 +229,12 @@ fn transform_options(options: &Val) -> Val {
         Val::Object(entries) => entries.clone(),
         _ => Vec::new(),
     };
+    // the fast mode sets the default value of minify (see fastModeOptions)
+    let fast_mode = entries.iter().any(|(k, v)| &**k == "fastMode" && v.truthy());
     for key in ["minify", "removeEmpty", "removeCharset"] {
+        if fast_mode && key == "minify" {
+            continue;
+        }
         match entries.iter_mut().find(|(k, _)| &**k == key) {
             Some((_, v)) if v.is_nullish() => *v = Val::Bool(true),
             Some(_) => {}

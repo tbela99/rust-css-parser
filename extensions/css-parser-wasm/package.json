@@ -11,21 +11,29 @@
   ],
   "description": "CSS parser, validator and minifier for node and the browsers: the rust port of @tbela99/css-parser as a WebAssembly module",
   "main": "./dist/node.js",
+  "types": "./dist/index.d.ts",
   "browser": "./dist/web.js",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "node": "./dist/node.js",
       "default": "./dist/web.js"
     },
-    "./node": "./dist/node.js",
-    "./web": "./dist/web.js",
+    "./node": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./web": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/web.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
     "build": "sh ../../build-bindings.sh wasm",
     "test": "cd ../.. && npm run test:wasm && npm run test:web",
     "prepublishOnly": "cd ../.. && npm run build:wasm && npm run test:wasm",
-    "prepare": "node ../../scripts/prepare-extension.mjs wasm"
+    "prepare": "node ../../scripts/prepare-extension.js wasm"
   },
   "author": "Thierry Bela",
   "repository": {

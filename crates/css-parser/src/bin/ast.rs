@@ -1,4 +1,4 @@
-//! dump the plain object of the ast of a css file (parity check, see scripts/parity/ast.mjs)
+//! dump the plain object of the ast of a css file (parity check, see scripts/parity/ast.js)
 use rust_css_parser::host::NoHost;
 use rust_css_parser::options::{ParserOptions, SourcesMap};
 use rust_css_parser::parser::input::CssInput;

@@ -42,7 +42,8 @@
     "syntax-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin webref && npm run syntax-compile",
     "syntax-compile": "cargo run --release --manifest-path scripts/Cargo.toml --bin compile_syntax",
     "config-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin shorthand",
-    "doc": "node scripts/docs.mjs"
+    "types-update": "node scripts/gen-types.js ../css",
+    "doc": "node scripts/docs.js"
   },
   "devDependencies": {
     "@web/test-runner": "^1.0.1",

@@ -1,3 +1,4 @@
+/* @ts-self-types="./index.d.ts" */
 // node entry point (port of src/node.ts)
 import { Readable } from "node:stream";
 import { createReadStream } from "node:fs";

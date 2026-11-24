@@ -46,7 +46,10 @@ function transformResult(result) {
 
 function transformDefaults(options) {
     options = { ...options };
-    options.minify ??= true;
+    // the fast mode sets the default value of minify (see fastModeOptions)
+    if (!options.fastMode) {
+        options.minify ??= true;
+    }
     options.removeEmpty ??= true;
     options.removeCharset ??= true;
     return options;

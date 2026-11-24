@@ -11,6 +11,7 @@ use super::mixins::utils::move_result;
 use super::strings::StringFlag;
 use super::types::{EnumAstNodeStatus, EnumToken};
 use super::walk::{ValueWalker, WalkerValueOptions};
+use crate::ast::types::MergeRulesEnum;
 use crate::options::ParserOptions;
 use crate::parser::parse::parse_string;
 use crate::parser::utils::eq::eq_token;
@@ -36,6 +37,8 @@ pub struct MinifyContext {
     pub renderer: Option<NodeRenderer>,
     /// state of the features (`context.declarations`, `context.lookup`, ...), by key
     pub data: HashMap<&'static str, Box<dyn Any>>,
+    /// merge only (see `merge_rules()`): the style rules are merged, the other nodes are only visited
+    pub merge_only: bool,
 }
 
 impl MinifyContext {
@@ -359,6 +362,16 @@ fn reducible_selector(arena: &AstArena, node: u32, optimized: &Rc<RefCell<Optimi
 
 /// apply the minification rules to the ast tree
 #[allow(clippy::too_many_arguments)]
+/// merge the adjacent rules without minifying the ast: `minify: false` with `mergeRules` (see `ParserOptions.merge_rules`).
+/// the style rules that have the same selector, the keyframes rules that have the same selector, the at-rules that have
+/// the same name and prelude (not `@font-face`) and, depending on `mergeRules`, the rules that share declarations are
+/// merged. of the `@keyframes` that have the same name, the last one is kept. the other minifications are not applied
+pub fn merge_rules(arena: &AstArena, ast: u32, options: &ParserOptions) -> u32 {
+    let options = ParserOptions { nesting_rules: Some(false), optimize_selectors: Some(false), ..options.clone() };
+    let mut context = MinifyContext { merge_only: true, ..Default::default() };
+    do_minify(arena, ast, &options, true, None, false, &mut context)
+}
+
 fn do_minify(
     arena: &AstArena,
     ast: u32,
@@ -422,7 +435,7 @@ fn do_minify(
                 continue;
             }
             // there is no early return: the result that precedes the conditional rules is moved after them
-            if equals_ignore_case(&nam, "function") {
+            if !context.merge_only && equals_ignore_case(&nam, "function") {
                 move_result(arena, n);
             }
         }
@@ -453,7 +466,8 @@ fn do_minify(
                     continue;
                 }
             }
-            let mut k = arena.first_child.get(n);
+            // merge only (see merge_rules()): the declarations are not removed
+            let mut k = if context.merge_only { 0 } else { arena.first_child.get(n) };
             while k != 0 {
                 let next = arena.next_sibling.get(k);
                 if t(k) == EnumToken::DeclarationNodeType {
@@ -475,7 +489,10 @@ fn do_minify(
         } else if node_type == EnumToken::AtRuleNodeType {
             let nam = arena.resolve_string(arena.name.get(n));
             let tokens: Option<Vec<u32>> = if arena.first_token.get(n) == 0 { None } else { Some(arena.tokens(n)) };
-            if nam == "apply" {
+            let has_tokens = tokens.is_some();
+            if context.merge_only {
+                // merge only (see merge_rules()): the preludes are not minified
+            } else if nam == "apply" {
                 minify_apply_prelude(arena, n);
             } else if nam == "media" {
                 if let Some(tokens) = &tokens {
@@ -514,7 +531,13 @@ fn do_minify(
                     trim_array(arena, &mut tokens);
                     arena.string_value.set(n, arena.intern_string(&render_prelude(arena, &tokens)));
                 }
-            } else if t(ast) == node_type && arena.name.get(ast) == arena.name.get(n) && arena.string_value.get(ast) == arena.string_value.get(n) {
+            }
+            if t(ast) == node_type
+                && arena.name.get(ast) == arena.name.get(n)
+                && arena.string_value.get(ast) == arena.string_value.get(n)
+                // the at-rules handled above are not replaced when the ast is minified
+                && (context.merge_only || (nam != "apply" && nam != "media" && !(nam == "import" && has_tokens)))
+            {
                 // the node is replaced by its children
                 cursor = match arena.first_child.get(n) {
                     0 => arena.next_sibling.get(n),
@@ -553,7 +576,8 @@ fn do_minify(
             continue;
         } else if node_type == EnumToken::RuleNodeType {
             // a single selector that does not end with a combinator is not reduced (see is_simple_selector())
-            if !is_simple_selector(arena, arena.name.get(n)) {
+            // the nesting reads the reduced selectors: optimizeSelectors only applies without it
+            if (options.optimize_selectors != Some(false) || options.nesting_rules == Some(true)) && !is_simple_selector(arena, arena.name.get(n)) {
                 reduce_rule_selector(arena, n);
             }
             let mut wrapper: Option<u32> = None;
@@ -672,7 +696,9 @@ fn do_minify(
                             previous = Some(n);
                             cursor = arena.next_sibling.get(n);
                             continue;
-                        } else if matches!(node_type, EnumToken::KeyframesRuleNodeType | EnumToken::RuleNodeType) {
+                        } else if options.merge_rules != Some(MergeRulesEnum::None)
+                            && matches!(node_type, EnumToken::KeyframesRuleNodeType | EnumToken::RuleNodeType)
+                        {
                             if let Some((result, node1, node2)) = diff(arena, p, n, options, context) {
                                 // [result, node2] take the place of node1 (previous), node1 takes the place of node2 (node)
                                 let after = arena.next_sibling.get(node2);
@@ -712,7 +738,7 @@ fn do_minify(
                 }
             }
         }
-        if !nesting_content {
+        if !nesting_content && !context.merge_only {
             if let Some(p) = previous {
                 if t(p) == EnumToken::RuleNodeType && arena.string_index_of(arena.name.get(p), 0x26) != -1 {
                     fix_selector(arena, p);
@@ -733,7 +759,7 @@ fn do_minify(
         {
             recurse!(n);
         }
-        if !nesting_content && t(n) == EnumToken::RuleNodeType && arena.string_index_of(arena.name.get(n), 0x26) != -1 {
+        if !nesting_content && !context.merge_only && t(n) == EnumToken::RuleNodeType && arena.string_index_of(arena.name.get(n), 0x26) != -1 {
             fix_selector(arena, n);
         }
     }
@@ -1402,9 +1428,36 @@ fn same_prefixes(a: &[String], b: &[String]) -> bool {
 }
 
 /// move the declarations shared by both rules into a new rule. `(result, node1, node2)`
+/// the number of declarations of a rule: its children that are not comments
+fn declaration_count(arena: &AstArena, node: u32) -> usize {
+    let mut count = 0;
+    let mut child = arena.first_child.get(node);
+    while child != 0 {
+        if arena.data_types.get(child) != EnumToken::CommentNodeType {
+            count += 1;
+        }
+        child = arena.next_sibling.get(child);
+    }
+    count
+}
+
+/// clear the matched flag of the children of a rule
+fn clear_matched(arena: &AstArena, node: u32) {
+    let mut child = arena.first_child.get(node);
+    while child != 0 {
+        arena.flags.set(child, arena.flags.get(child) & !EnumAstNodeStatus::Matched);
+        child = arena.next_sibling.get(child);
+    }
+}
+
 fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &mut MinifyContext) -> Option<(Option<u32>, u32, u32)> {
     // the declarations of a rule that applies a mixin are not moved
     if has_at_rule_statement(arena, n1) || has_at_rule_statement(arena, n2) {
+        return None;
+    }
+    // only the rules that have the same declarations are merged: the rules that have a different number of
+    // declarations are not compared
+    if options.merge_rules == Some(MergeRulesEnum::Identical) && declaration_count(arena, n1) != declaration_count(arena, n2) {
         return None;
     }
     context.cache.get_or_insert_with(HashMap::default);
@@ -1414,15 +1467,6 @@ fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &m
     if arena.child_count(node1) > arena.child_count(node2) {
         std::mem::swap(&mut node1, &mut node2);
         exchanged = true;
-    }
-    // the prefixes of the cached raw selectors are read in place
-    // the prefixes are computed once per split selector (see RawSelector) or per selector string
-    let cached1 = arena.raw.borrow().get(&node1).map(|r| r.prefixes(raw_selector_prefixes));
-    let prefixes1 = cached1.unwrap_or_else(|| selector_prefixes_of(arena, arena.name.get(node1)));
-    let cached2 = arena.raw.borrow().get(&node2).map(|r| r.prefixes(raw_selector_prefixes));
-    let prefixes2 = cached2.unwrap_or_else(|| selector_prefixes_of(arena, arena.name.get(node2)));
-    if !same_prefixes(&prefixes1, &prefixes2) {
-        return None;
     }
     // match the declarations of both rules, from the last to the first
     let mut matches = 0;
@@ -1443,10 +1487,37 @@ fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &m
                 }
                 child2 = arena.previous_sibling.get(child2);
             }
+            // a declaration without a match: the rules are not identical
+            if options.merge_rules == Some(MergeRulesEnum::Identical) && arena.flags.get(child1) & EnumAstNodeStatus::Matched == 0 {
+                clear_matched(arena, node1);
+                clear_matched(arena, node2);
+                return None;
+            }
         }
         child1 = arena.previous_sibling.get(child1);
     }
     if matches == 0 && (arena.first_child.get(node1) != 0 || arena.first_child.get(node2) != 0) {
+        return None;
+    }
+    // every declaration of both rules is matched: the merged rule replaces both rules, it is always smaller, the sizes
+    // are not computed
+    let identical = matches == declaration_count(arena, node1) && matches == declaration_count(arena, node2);
+    if !identical && options.merge_rules == Some(MergeRulesEnum::Identical) {
+        // the rules are not merged: the matched declarations are released
+        clear_matched(arena, node1);
+        clear_matched(arena, node2);
+        return None;
+    }
+    // the vendor prefixes are compared once the rules share declarations
+    // the prefixes of the cached raw selectors are read in place
+    // the prefixes are computed once per split selector (see RawSelector) or per selector string
+    let cached1 = arena.raw.borrow().get(&node1).map(|r| r.prefixes(raw_selector_prefixes));
+    let prefixes1 = cached1.unwrap_or_else(|| selector_prefixes_of(arena, arena.name.get(node1)));
+    let cached2 = arena.raw.borrow().get(&node2).map(|r| r.prefixes(raw_selector_prefixes));
+    let prefixes2 = cached2.unwrap_or_else(|| selector_prefixes_of(arena, arena.name.get(node2)));
+    if !same_prefixes(&prefixes1, &prefixes2) {
+        clear_matched(arena, node1);
+        clear_matched(arena, node2);
         return None;
     }
     // the rules are rendered with the same options during the minification
@@ -1469,7 +1540,7 @@ fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &m
         }
     };
     // size of the original nodes
-    let size = rendered_size(context, n1, true) + rendered_size(context, n2, true);
+    let size = if identical { 0 } else { rendered_size(context, n1, true) + rendered_size(context, n2, true) };
     // the shared declarations are moved into the result node
     let result = arena.clone_node(node1);
     let merged = merge_selectors(arena, arena.name.get(node1), arena.name.get(node2)).unwrap_or_else(|| {
@@ -1510,7 +1581,11 @@ fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &m
         cache.remove(&node1);
         cache.remove(&node2);
     }
-    let merged_size = rendered_size(context, node1, false) + rendered_size(context, node2, false) + rendered_size(context, result, false);
+    let merged_size = if identical {
+        0
+    } else {
+        rendered_size(context, node1, false) + rendered_size(context, node2, false) + rendered_size(context, result, false)
+    };
     if size < merged_size || (size == merged_size && arena.first_child.get(node1) != 0 && arena.first_child.get(node2) != 0) {
         // restore the nodes: undo the moves in reverse order
         for &(child, parent, next) in moves.iter().rev() {
@@ -1527,7 +1602,12 @@ fn diff(arena: &AstArena, n1: u32, n2: u32, options: &ParserOptions, context: &m
     // the raw and optimized selectors are not copied by cloneNode()
     arena.raw.borrow_mut().remove(&result);
     arena.optimized.borrow_mut().remove(&result);
-    if let Some(optimized) = optimize_selector(&split_rule(&arena.resolve_string(arena.name.get(result)))) {
+    let optimized = if options.optimize_selectors == Some(false) {
+        None
+    } else {
+        optimize_selector(&split_rule(&arena.resolve_string(arena.name.get(result))))
+    };
+    if let Some(optimized) = optimized {
         if optimized.match_ {
             if let Some(sel) = factor_selector(&optimized) {
                 if js_len(&sel) < arena.string_length(arena.name.get(result)) {

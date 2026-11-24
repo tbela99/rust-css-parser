@@ -1,6 +1,6 @@
 // the prepare script of the extensions (package.json): builds the package when it is installed from git, where dist/
 // is not committed, e.g. pnpm add "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-wasm"
-// usage: node ../../scripts/prepare-extension.mjs napi|wasm
+// usage: node ../../scripts/prepare-extension.js napi|wasm
 // - napi: the javascript modules and the rust sources: the install script of the package builds the addon
 // - wasm: the javascript modules and the WebAssembly module (the Rust toolchain and the wasm32 target are required)
 // nothing is done when dist/ exists, or by `npm install` at the root of the monorepo (it runs the prepare script of
@@ -15,7 +15,7 @@ const name = process.argv[2];
 const targets = { napi: "napi-package", wasm: "wasm" };
 
 if (!(name in targets)) {
-    console.error(`usage: node prepare-extension.mjs napi|wasm`);
+    console.error(`usage: node prepare-extension.js napi|wasm`);
     process.exit(1);
 }
 

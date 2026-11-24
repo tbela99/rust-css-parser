@@ -7,11 +7,12 @@
 
 use crate::ast::arena::{AstArena, TokenField};
 use crate::ast::features::mixin::evaluate_mixins;
-use crate::ast::minify::minify;
+use crate::ast::minify::{merge_rules, minify};
 use crate::ast::types::{EnumAstNodeStatus, EnumToken, ModuleCaseTransformEnum as Case, ModuleScopeEnumOptions as Scope, WalkerEvent};
 use crate::ast::walk::{NodeWalker, ValueWalker, WalkerValueOptions, WalkerValueResult};
 use crate::fs::resolve::{dirname, resolve};
 use crate::host::{resolve as await_host, Host, HostDef, HostError, HostValue};
+use crate::ast::types::MergeRulesEnum;
 use crate::options::{ModuleOption, ModuleScoped, ParserOptions, RemoveDuplicateDeclarations, SourceMapOption};
 use crate::parser::input::CssInput;
 use crate::parser::parse::{
@@ -104,6 +105,11 @@ pub fn do_parse(tokenizer: Tokenizer, options: ParserOptions, arena: Option<Rc<A
 /// the default options of `doParse()`, then the options of the caller
 fn with_defaults(options: ParserOptions) -> ParserOptions {
     let mut o = options;
+    // the fast mode settings (`fastModeOptions`), an option given explicitly takes precedence
+    if o.fast_mode == Some(true) {
+        o.minify.get_or_insert(false);
+        o.merge_rules.get_or_insert(MergeRulesEnum::Identical);
+    }
     o.src.get_or_insert_with(String::new);
     o.sourcemap.get_or_insert(SourceMapOption::Off);
     o.minify.get_or_insert(true);
@@ -307,10 +313,15 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
         apply_visitors(&arena, ast, &visitor, &mut errors, &host, is_sync).await?;
     }
     drop_invalid_nodes(a, &invalid_nodes, &options);
-    if options.minify_ast == Some(true) && a.first_child.get(ast) != 0 {
-        for _ in 0..options.pass.unwrap_or(1) {
-            minify(a, ast, &minify_options, true, Some(&mut errors), false);
+    if options.minify_ast == Some(true) {
+        if a.first_child.get(ast) != 0 {
+            for _ in 0..options.pass.unwrap_or(1) {
+                minify(a, ast, &minify_options, true, Some(&mut errors), false);
+            }
         }
+    } else if matches!(options.merge_rules, Some(m) if m != MergeRulesEnum::None) && a.first_child.get(ast) != 0 {
+        // the ast is not minified: the adjacent rules are merged
+        merge_rules(a, ast, &minify_options);
     }
     stats.bytes_in += stats.imported_bytes_in;
     a.release_source_codes(source_index as usize);

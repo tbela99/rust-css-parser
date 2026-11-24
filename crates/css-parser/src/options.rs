@@ -5,6 +5,7 @@
 //! port keeps a single struct passed by reference. Host callbacks (loaders, visitors, scoped name generators) are
 //! defined in [`crate::host`].
 
+use crate::ast::types::MergeRulesEnum;
 use crate::parser::source::SourceFile;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -102,6 +103,13 @@ pub struct ParserOptions {
     pub keep_mixins: Option<bool>,
     pub remove_empty: Option<bool>,
     pub remove_prefix: Option<bool>,
+    /// optimize the selectors (reduce, factor with `:is()`): `None` is `true`
+    pub optimize_selectors: Option<bool>,
+    /// `mergeRules?: boolean | MergeRulesEnum`: a `MergeRulesEnum` value (`true` is `All`, `false` is `None`). `None`
+    /// (unset): `All` when the ast is minified, no merge otherwise
+    pub merge_rules: Option<u32>,
+    /// the inexpensive minifications only: sets the default value of the fast mode settings (see `with_defaults()`)
+    pub fast_mode: Option<bool>,
     pub pass: Option<u32>,
     // ParserSourceMapOptions
     pub sourcemap: Option<SourceMapOption>,
@@ -216,6 +224,16 @@ impl ParserOptions {
                 "keepMixins" => o.keep_mixins = b(),
                 "removeEmpty" => o.remove_empty = b(),
                 "removePrefix" => o.remove_prefix = b(),
+                "optimizeSelectors" => o.optimize_selectors = b(),
+                "mergeRules" => {
+                    // `boolean | MergeRulesEnum`: `true` is `All`, `false` is `None`
+                    o.merge_rules = Some(match n() {
+                        Some(n) => n as u32,
+                        None if truthy(&value) => MergeRulesEnum::All,
+                        None => MergeRulesEnum::None,
+                    })
+                }
+                "fastMode" => o.fast_mode = b(),
                 "pass" => o.pass = n().map(|n| n as u32),
                 "sourcemap" => {
                     o.sourcemap = Some(match &value {

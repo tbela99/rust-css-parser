@@ -1,4 +1,4 @@
-// visitors called sync and async: `node scripts/parity/visitors.mjs <dist directory>` prints the results of every case,
+// visitors called sync and async: `node scripts/parity/visitors.js <dist directory>` prints the results of every case,
 // to compare the typescript build with the rust bindings
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";

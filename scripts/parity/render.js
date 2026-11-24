@@ -1,5 +1,5 @@
 // render a css file (parity check with src/bin/render.rs): parse without minification, render with the options
-// usage: node scripts/parity/render.mjs <dist> <file> [beautify|minify]
+// usage: node scripts/parity/render.js <dist> <file> [beautify|minify]
 import { readFileSync } from "node:fs";
 const [dist, file, mode] = process.argv.slice(2);
 const { parseSync, render } = await import(`${dist}/node.js`);

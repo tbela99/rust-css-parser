@@ -1,6 +1,8 @@
 #!/bin/sh
-# build the extensions of the workspace: sh build-bindings.sh [napi] [wasm] (both by default)
+# build the extensions of the workspace: sh build-bindings.sh [napi] [napi-package] [wasm] (napi wasm by default)
 #  - napi: extensions/css-parser-napi/dist, the javascript modules and the N-API addon (css_parser.node)
+#  - napi-package: the N-API package without the addon: the javascript modules and the rust sources (rust/). the
+#    install script of the package (install.js) builds the addon on the client machine
 #  - wasm: extensions/css-parser-wasm/dist, the javascript modules and the WebAssembly module (css_parser.wasm)
 # the javascript modules are shared (bindings/), the backend (backend.js) is the one of the extension
 set -eu
@@ -66,6 +68,23 @@ fs.writeFileSync(process.argv[1], toml);
     printf '{\n  "version": "%s"\n}\n' "$version" > "$rust/package.json"
 }
 
+# cargo of the stable toolchain when rustup is installed, the cargo of the PATH otherwise (a client machine)
+cargo() {
+    if command -v rustup > /dev/null 2>&1; then
+        rustup run stable cargo "$@"
+    else
+        command cargo "$@"
+    fi
+}
+
+# the N-API package without the addon
+napi_package() {
+    assemble napi
+    # the N-API addon has no browser entry point
+    rm -f extensions/css-parser-napi/dist/web.js
+    stage_napi_sources
+}
+
 for target in $targets; do
     case "$target" in
         napi)
@@ -74,24 +93,31 @@ for target in $targets; do
                 Linux) library=libcss_parser_napi.so ;;
                 *) echo 'the N-API build supports macOS and Linux.' >&2; exit 1 ;;
             esac
-            rustup run stable cargo build --release -p css-parser-napi
-            assemble napi
-            # the N-API addon has no browser entry point
-            rm -f extensions/css-parser-napi/dist/web.js
+            cargo build --release -p css-parser-napi
+            napi_package
             cp "target/release/$library" extensions/css-parser-napi/dist/css_parser.node
-            stage_napi_sources
+            ;;
+        napi-package)
+            napi_package
             ;;
         wasm)
-            # the WASM module is optimized by wasm-opt (binaryen, a dev dependency: npm install)
-            wasm_opt=node_modules/.bin/wasm-opt
-            if [ ! -x "$wasm_opt" ]; then
-                echo 'wasm-opt is missing: run npm install' >&2
+            if command -v rustup > /dev/null 2>&1 && ! rustup target list --installed --toolchain stable | grep -qx wasm32-unknown-unknown; then
+                echo 'the WebAssembly target is missing: rustup target add --toolchain stable wasm32-unknown-unknown' >&2
                 exit 1
             fi
-            rustup run stable cargo build --release -p css-parser-wasm --target wasm32-unknown-unknown
+            cargo build --release -p css-parser-wasm --target wasm32-unknown-unknown
             assemble wasm
-            "$wasm_opt" -O3 target/wasm32-unknown-unknown/release/css_parser_wasm.wasm -o extensions/css-parser-wasm/dist/css_parser.wasm
+            # the WASM module is optimized by wasm-opt: binaryen, a dev dependency (npm install), or the version of
+            # package.json fetched by npx when the dev dependencies are not installed (a package installed from git)
+            output=extensions/css-parser-wasm/dist/css_parser.wasm
+            input=target/wasm32-unknown-unknown/release/css_parser_wasm.wasm
+            if [ -x node_modules/.bin/wasm-opt ]; then
+                node_modules/.bin/wasm-opt -O3 "$input" -o "$output"
+            else
+                binaryen=$(node -p 'require("./package.json").devDependencies.binaryen')
+                npx --yes -p "binaryen@$binaryen" wasm-opt -O3 "$input" -o "$output"
+            fi
             ;;
-        *) echo "unknown extension: $target (napi or wasm)" >&2; exit 1 ;;
+        *) echo "unknown extension: $target (napi, napi-package or wasm)" >&2; exit 1 ;;
     esac
 done

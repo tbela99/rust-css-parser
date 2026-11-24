@@ -52,6 +52,22 @@ The API is the API of the TypeScript library: see the [guides](files/index.md) a
 [JavaScript API reference](https://tbela99.github.io/css-parser/docs/modules/node.html). The crate can be used from
 Rust: see [Rust API](files/rust.md).
 
+### Install from a branch
+
+The extensions can be installed from git, e.g. the `v.next` branch. `dist/` is not committed: the `prepare` script
+of the package (`scripts/prepare-extension.mjs`) builds it, so the build scripts of the package must be allowed.
+The [Rust toolchain](https://rustup.rs) is required; the WebAssembly package also needs the WebAssembly target
+(`rustup target add wasm32-unknown-unknown`).
+
+```shell
+pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-napi"
+pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-wasm"
+```
+
+pnpm approves the build of a git dependency by its exact commit, not by name: `--allow-build` is not enough. To
+approve one commit only, add the key printed by pnpm (`@tbela99/rust-css-parser-wasm@git+https://...#<commit>&path:...`)
+to `allowBuilds` in `pnpm-workspace.yaml`.
+
 ## Documentation
 
 - [files/](files/index.md): the guides (markdown)

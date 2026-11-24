@@ -1,6 +1,8 @@
-# Publish @tbela99/rust-css-parser-napi and @tbela99/rust-css-parser-wasm to npm and JSR when a version tag (v2.2.1)
-# is pushed, after the CI (ci.yml) passed. Run it by hand (workflow_dispatch) to publish the current version of a
-# branch.
+# Publish @tbela99/rust-css-parser-napi and @tbela99/rust-css-parser-wasm to npm and JSR, and rust-css-parser to
+# crates.io, when a pull request is merged into master, after the CI (ci.yml) passed on the merged commit.
+#
+# The version is the version of package.json (build-bindings.sh keeps the crates and the packages in sync). A version
+# that is already published is skipped: merging a pull request that does not change the version publishes nothing.
 #
 # - @tbela99/rust-css-parser-napi: the javascript modules and the rust sources, without the addon: the addon is built
 #   on the client machine by the install script of the package (extensions/css-parser-napi/install.js)
@@ -17,20 +19,71 @@
 name: publish
 
 on:
-  push:
-    tags: [ "v*" ]
-  workflow_dispatch:
+  pull_request:
+    types: [ closed ]
+    branches: [ master ]
 
 jobs:
+  # the version of package.json, and the registries it is not published to yet
+  version:
+    # a pull request that is closed without being merged publishes nothing
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      npm-napi: ${{ steps.check.outputs.npm-napi }}
+      npm-wasm: ${{ steps.check.outputs.npm-wasm }}
+      jsr-napi: ${{ steps.check.outputs.jsr-napi }}
+      jsr-wasm: ${{ steps.check.outputs.jsr-wasm }}
+      crates: ${{ steps.check.outputs.crates }}
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the merged commit: the code of master
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - name: Check the published versions
+        id: check
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # true when the version is not published yet
+          # crates.io requires a user agent
+          missing() { if curl -sfL -A "rust-css-parser publish workflow" -o /dev/null "$1"; then echo false; else echo true; fi; }
+          npm_napi=$(missing "https://registry.npmjs.org/@tbela99/rust-css-parser-napi/$version")
+          npm_wasm=$(missing "https://registry.npmjs.org/@tbela99/rust-css-parser-wasm/$version")
+          jsr_napi=$(missing "https://jsr.io/@tbela99/rust-css-parser-napi/${version}_meta.json")
+          jsr_wasm=$(missing "https://jsr.io/@tbela99/rust-css-parser-wasm/${version}_meta.json")
+          crates=$(missing "https://crates.io/api/v1/crates/rust-css-parser/$version")
+          publish=false
+          for flag in $npm_napi $npm_wasm $jsr_napi $jsr_wasm $crates; do
+            if [ "$flag" = true ]; then publish=true; fi
+          done
+          {
+            echo "npm-napi=$npm_napi"
+            echo "npm-wasm=$npm_wasm"
+            echo "jsr-napi=$jsr_napi"
+            echo "jsr-wasm=$jsr_wasm"
+            echo "crates=$crates"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "version $version: npm napi=$npm_napi wasm=$npm_wasm, jsr napi=$jsr_napi wasm=$jsr_wasm, crates.io=$crates (true: to publish)"
+
   ci:
+    needs: version
+    if: needs.version.outputs.publish == 'true'
     # a workflow of this repository: the path starts with ./
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.pull_request.merge_commit_sha }}
 
   build:
-    needs: ci
+    needs: [ version, ci ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - name: Install the rust toolchain (rustc, cargo) and the WebAssembly target
         run: |
           if ! command -v rustup > /dev/null; then
@@ -45,15 +98,6 @@ jobs:
           package-manager-cache: false  # never use caching in release builds
       - name: Install NPM dependencies
         run: npm install --include=dev
-      # a tag must be the version of package.json
-      - name: Check the version
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          version=$(node -p 'require("./package.json").version')
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "the tag $GITHUB_REF_NAME is not the version of package.json ($version)" >&2
-            exit 1
-          fi
       - name: Build
         run: npm run build
       # the packages as they are published: dist/ (without the N-API addon), rust/, the license
@@ -71,7 +115,7 @@ jobs:
             extensions/css-parser-wasm/LICENSE.md
 
   npm:
-    needs: build
+    needs: [ version, build ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -79,27 +123,38 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        extension: [ css-parser-napi, css-parser-wasm ]
+        include:
+          - extension: css-parser-napi
+            publish: ${{ needs.version.outputs.npm-napi }}
+          - extension: css-parser-wasm
+            publish: ${{ needs.version.outputs.npm-wasm }}
     steps:
       - uses: actions/checkout@v7
+        if: matrix.publish == 'true'
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-node@v7
+        if: matrix.publish == 'true'
         with:
           node-version: '26.x'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false  # never use caching in release builds
       - uses: actions/download-artifact@v8
+        if: matrix.publish == 'true'
         with:
           name: packages
           path: extensions
-      # the package was built and tested by the previous jobs: its scripts are not run
+      # the package was built and tested by the previous jobs: its scripts are not run. a version that is already
+      # published is skipped
       - name: Publish
+        if: matrix.publish == 'true'
         working-directory: extensions/${{ matrix.extension }}
         run: npm publish --provenance --access public --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   jsr:
-    needs: build
+    needs: [ version, build ]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,24 +162,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        extension: [ css-parser-napi, css-parser-wasm ]
+        include:
+          - extension: css-parser-napi
+            publish: ${{ needs.version.outputs.jsr-napi }}
+          - extension: css-parser-wasm
+            publish: ${{ needs.version.outputs.jsr-wasm }}
     steps:
       - uses: actions/checkout@v7
+        if: matrix.publish == 'true'
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - uses: actions/setup-node@v7
+        if: matrix.publish == 'true'
         with:
           node-version: '26.x'
           package-manager-cache: false  # never use caching in release builds
       - uses: actions/download-artifact@v8
+        if: matrix.publish == 'true'
         with:
           name: packages
           path: extensions
-      # JSR skips a version that is already published
+      # a version that is already published is skipped
       - name: Publish
+        if: matrix.publish == 'true'
         working-directory: extensions/${{ matrix.extension }}
         run: npx --yes jsr@0.14.3 publish
 
   crates:
-    needs: ci
+    needs: [ version, ci ]
+    if: needs.version.outputs.crates == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -134,6 +200,8 @@ jobs:
       HAS_CARGO_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
       - name: Install the rust toolchain (rustc, cargo)
         run: |
           if ! command -v rustup > /dev/null; then
@@ -143,13 +211,12 @@ jobs:
           fi
           rustup toolchain install stable --profile minimal --component cargo
           rustup default stable
-      # a tag must be the version of the crate
+      # the crate must have the version of package.json
       - name: Check the version
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "rust-css-parser") | .version')
-          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
-            echo "the tag $GITHUB_REF_NAME is not the version of the crate ($version)" >&2
+          if [ "$version" != "${{ needs.version.outputs.version }}" ]; then
+            echo "the version of the crate ($version) is not the version of package.json (${{ needs.version.outputs.version }}): run npm run build" >&2
             exit 1
           fi
       # a short-lived token from trusted publishing. without a trusted publisher on crates.io (the first version of

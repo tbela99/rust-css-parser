@@ -21,6 +21,16 @@ if (monorepo || process.env.CSS_PARSER_NAPI_SKIP_BUILD) {
     process.exit(0);
 }
 
+// the rust sources and dist/ are staged by the build (npm publish) or by the prepare script (an install from git)
+if (!existsSync(join(rust, "Cargo.toml")) || !existsSync(join(here, "dist"))) {
+    console.error(
+        "@tbela99/rust-css-parser-napi: the package was not prepared (rust/ or dist/ is missing). An install from git " +
+            "needs a commit that has the prepare script of the package, and the build scripts of the package must be " +
+            "allowed (pnpm: allowBuilds in pnpm-workspace.yaml, or --config.dangerouslyAllowAllBuilds=true).",
+    );
+    process.exit(1);
+}
+
 const libraries = {
     darwin: "libcss_parser_napi.dylib",
     linux: "libcss_parser_napi.so",

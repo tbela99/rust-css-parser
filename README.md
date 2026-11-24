@@ -86,26 +86,6 @@ npm run test:web     # the TypeScript specs against css-parser-wasm in Chromium,
 The specs import `#dist/...` (the `imports` of the root package.json): the `napi` and `wasm` conditions (set by
 `test:napi` and `test:wasm`) select the package, the browsers get `css-parser-wasm`.
 
-
-## Publish
-
-`@tbela99/rust-css-parser-napi` and `@tbela99/rust-css-parser-wasm` are published to npm and to [JSR](https://jsr.io)
-(`extensions/*/package.json`, `extensions/*/jsr.json`; `npm run build` keeps their version in sync with the root
-package.json). Each script builds the extension and runs its specs first.
-
-| Script | Publishes |
-|--------|-----------|
-| `npm run publish:dry-run` | nothing: builds both extensions, lists what npm and JSR would publish |
-| `npm run publish:napi:npm`, `npm run publish:napi:jsr`, `npm run publish:napi` | `@tbela99/rust-css-parser-napi` to npm, JSR, both |
-| `npm run publish:wasm:npm`, `npm run publish:wasm:jsr`, `npm run publish:wasm` | `@tbela99/rust-css-parser-wasm` to npm, JSR, both |
-| `npm run publish:npm`, `npm run publish:jsr`, `npm run publish:all` | both packages to npm, JSR, both |
-
-JSR refuses to publish uncommitted changes: commit first.
-
-`@tbela99/rust-css-parser-napi` does not contain the addon (`*.node` is not published, nor committed): it contains the
-Rust sources (`rust/`, staged by `npm run build:napi`) and its install script (`install.js`) builds the addon on the
-client machine with cargo (macOS and Linux, Rust toolchain required).
-
 ### CI
 
 - `.github/workflows/ci.yml` (push, pull request): the Rust tests and the specs, and `napi-install`: the N-API package

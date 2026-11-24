@@ -3,7 +3,7 @@
 The changes of the port. The changes of the parser itself are in the changelog of
 [@tbela99/css-parser](https://github.com/tbela99/css-parser/blob/master/CHANGELOG.md): the port follows its versions.
 
-# v2.2.1
+# v2.3.0
 
 ## Bugs
 

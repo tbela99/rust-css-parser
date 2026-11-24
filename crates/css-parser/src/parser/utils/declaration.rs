@@ -168,7 +168,7 @@ pub fn parse_declaration(arena: &AstArena, tokens: &mut Vec<u32>, parent: Option
         errors.push(error.clone());
         return create_declaration_node(arena, name, &tokens, EnumAstNodeStatus::Invalid, Some(vec![error]));
     }
-    let mut stack: Vec<u32> = Vec::new();
+    let mut stack = crate::utils::pool::PooledVec::new();
     let mut result_errors: Option<Vec<ErrorDescription>> = None;
     let mut has_result = false;
     if let Some(rules) = &syntax_rules {
@@ -236,9 +236,13 @@ pub fn parse_declaration(arena: &AstArena, tokens: &mut Vec<u32>, parent: Option
                         func,
                         if top == Some(EnumToken::StartParensTokenType) { EnumToken::ParensTokenType } else { tokens_func_def_map(top.unwrap()).unwrap_or(0) },
                     );
-                    let mut inner: Vec<u32> = tokens.drain(index + 1..i as usize).collect();
-                    trim_array(arena, &mut inner);
-                    arena.set_token_list(func, &inner);
+                    // the trimmed range is read in place, then the tokens are removed
+                    let range = &tokens[index + 1..i as usize];
+                    let ws = |x: &u32| t(*x) == EnumToken::WhitespaceTokenType;
+                    let start = range.iter().position(|x| !ws(x)).unwrap_or(range.len());
+                    let end = range.iter().rposition(|x| !ws(x)).map_or(start, |e| e + 1);
+                    arena.set_token_list(func, &range[start..end]);
+                    tokens.drain(index + 1..i as usize);
                     if t(func) == EnumToken::WildCardFunctionTokenType && arena.string_equals_ignore_case(arena.string_value.get(func), "if") {
                         build_if_function(arena, func);
                     } else if t(func) == EnumToken::UrlFunctionTokenType {

@@ -104,7 +104,7 @@ pub fn convert_color(arena: &AstArena, token: u32, to: u8) -> Option<u32> {
         let color_space = arena.find_token(token, |a, t| !matches!(a.data_types.get(t), EnumToken::WhitespaceTokenType | EnumToken::CommentTokenType));
         if let Some(color_space) = color_space {
             if s(color_space) == color_space_name(to) {
-                for chi in arena.tokens(token) {
+                for chi in arena.token_iter(token) {
                     if arena.data_types.get(chi) == EnumToken::NumberTokenType && !arena.has_fraction(chi) {
                         arena.numeric_value.set(chi, get_number(arena, chi));
                     }

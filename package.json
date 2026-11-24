@@ -37,7 +37,8 @@
     "publish:jsr": "npm run publish:napi:jsr && npm run publish:wasm:jsr",
     "publish:all": "npm run publish:napi && npm run publish:wasm",
     "publish:dry-run": "npm run build && npm publish --workspaces --dry-run --ignore-scripts && (cd extensions/css-parser-napi && jsr publish --dry-run --allow-dirty) && (cd extensions/css-parser-wasm && jsr publish --dry-run --allow-dirty)",
-    "syntax-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin webref",
+    "syntax-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin webref && npm run syntax-compile",
+    "syntax-compile": "cargo run --release --manifest-path scripts/Cargo.toml --bin compile_syntax",
     "config-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin shorthand",
     "doc": "node scripts/docs.mjs"
   },

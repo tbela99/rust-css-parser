@@ -32,9 +32,9 @@ fn syntax_error(message: &str, token: Option<u32>, syntax: &Syntax) -> ErrorDesc
     error
 }
 
-/// first item of a function syntax (`name()`): its arguments
-fn function_chi(syntax: Option<Rc<Vec<Syntax>>>) -> Option<Vec<Syntax>> {
-    syntax.and_then(|s| s.first().map(|f| f.children().to_vec()))
+/// first item of a function syntax (`name()`): the arguments are its children, borrowed by the callers
+fn function_head(syntax: Option<Rc<Vec<Syntax>>>) -> Option<Syntax> {
+    syntax.and_then(|s| s.first().cloned())
 }
 
 /// outcome of a syntax of the sequence
@@ -90,7 +90,7 @@ pub fn match_syntax(arena: &AstArena, syntaxes: Option<&[Syntax]>, context: &Con
         if arena.data_types.get(tk) == EnumToken::WildCardFunctionTokenType && arena.string_equals(arena.string_value.get(tk), "var") && !probed {
             let r = match_syntax(
                 arena,
-                function_chi(function_syntax(arena, tk)).as_deref(),
+                function_head(function_syntax(arena, tk)).as_ref().map(|f| f.children()),
                 &create_validation_context(arena, &arena.tokens(tk)),
                 options,
             );
@@ -124,7 +124,7 @@ pub fn match_syntax(arena: &AstArena, syntaxes: Option<&[Syntax]>, context: &Con
             let mut range = context.borrow().peek_range(arena, EnumToken::EndParensTokenType, 0);
             trim_array(arena, &mut range);
             let inner: &[u32] = if range.len() >= 2 { &range[1..range.len() - 1] } else { &[] };
-            let r = match_syntax(arena, function_chi(function_syntax(arena, tk)).as_deref(), &create_validation_context(arena, inner), options);
+            let r = match_syntax(arena, function_head(function_syntax(arena, tk)).as_ref().map(|f| f.children()), &create_validation_context(arena, inner), options);
             let ok = r.success;
             result = Some(r);
             if ok {
@@ -490,9 +490,9 @@ fn match_one(
                 if is_function_def_type(t) {
                     let mut children = context.borrow().peek_range(arena, EnumToken::EndParensTokenType, 0);
                     trim_array(arena, &mut children);
-                    let chi = parsed.as_ref().and_then(|p| p.first()).map(|f| f.children().to_vec()).unwrap_or_default();
+                    let chi: &[Syntax] = parsed.as_ref().and_then(|p| p.first()).map_or(&[], |f| f.children());
                     let inner: &[u32] = if children.len() >= 2 { &children[1..children.len() - 1] } else { &[] };
-                    let r = match_syntax(arena, Some(&chi), &create_validation_context(arena, inner), options);
+                    let r = match_syntax(arena, Some(chi), &create_validation_context(arena, inner), options);
                     let ok = r.success && r.ctx().done(arena);
                     *result = Some(r);
                     if ok {

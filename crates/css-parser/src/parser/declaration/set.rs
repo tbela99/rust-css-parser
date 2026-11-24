@@ -65,7 +65,7 @@ impl PropertySet {
             let separator = self.config.get("separator").and_then(|s| s.get("val")).and_then(|v| v.as_str());
             let mut is_valid = true;
             let mut tokens: Vec<Vec<u32>> = Vec::new();
-            for token in arena.tokens(existing) {
+            for token in arena.token_iter(existing) {
                 let typ = arena.data_types.get(token);
                 if types.iter().any(|t| EnumToken::value(t) == Some(typ))
                     || (typ == EnumToken::NumberTokenType

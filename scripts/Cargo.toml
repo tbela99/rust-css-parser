@@ -14,6 +14,8 @@ serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 ureq = "2"
 regex = "1"
+# the syntax compiler parses the syntaxes with the library parser
+rust-css-parser = { path = "../crates/css-parser" }
 
 [[bin]]
 name = "webref"
@@ -22,3 +24,7 @@ path = "webref.rs"
 [[bin]]
 name = "shorthand"
 path = "shorthand/main.rs"
+
+[[bin]]
+name = "compile_syntax"
+path = "compile_syntax.rs"

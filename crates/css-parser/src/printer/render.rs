@@ -193,8 +193,39 @@ impl<'a> Reducer<'a> {
             acc.push_str(&arena.resolve_string(arena.string_value.get(curr)));
             return;
         }
-        acc.push_str(&render_value_with(arena, curr, o, self.cache, Some(self)));
+        if !render_simple_into(arena, curr, acc) {
+            acc.push_str(&render_value_with(arena, curr, o, self.cache, Some(self)));
+        }
     }
+}
+
+/// append a token without children that renders its value as is (idents, strings, literals, separators, numbers): the
+/// value is written to the output, no string is created. false for the other tokens (see `render_token()`)
+fn render_simple_into(arena: &AstArena, token: u32, out: &mut String) -> bool {
+    if arena.first_token.get(token) != 0 || arena.first_child.get(token) != 0 {
+        return false;
+    }
+    match arena.data_types.get(token) {
+        EnumToken::CssTypeTokenType
+        | EnumToken::UrlTokenTokenType
+        | EnumToken::HashTokenType
+        | EnumToken::IdenTokenType
+        | EnumToken::StringTokenType
+        | EnumToken::LiteralTokenType
+        | EnumToken::UniCodeRange
+        | EnumToken::DashedIdenTokenType
+        | EnumToken::PseudoPageTokenType
+        | EnumToken::ClassSelectorTokenType => arena.with_string(arena.string_value.get(token), |v| out.push_str(v)),
+        EnumToken::NestingSelectorTokenType => out.push('&'),
+        EnumToken::DescendantCombinatorTokenType | EnumToken::WhitespaceTokenType => out.push(' '),
+        EnumToken::ColonTokenType => out.push(':'),
+        EnumToken::SemiColonTokenType => out.push(';'),
+        EnumToken::CommaTokenType => out.push(','),
+        // no fraction: no child
+        EnumToken::NumberTokenType => crate::syntax::syntax::with_minified_number(arena.numeric_value.get(token), |v| out.push_str(v)),
+        _ => return false,
+    }
+    true
 }
 
 /// renders nodes with the same options (`NodeRenderer`): the size of the rendered node
@@ -1080,7 +1111,7 @@ fn render_reduced(arena: &AstArena, first: u32, options: &RenderOptions, cache: 
             if options.preserve_license == Some(true) && arena.string_starts_with(arena.string_value.get(token), "/*!") {
                 result.push_str(&arena.resolve_string(arena.string_value.get(token)));
             }
-        } else {
+        } else if !render_simple_into(arena, token, &mut result) {
             result.push_str(&render_value_with(arena, token, options, cache, None));
         }
         token = arena.next_sibling.get(token);
@@ -1093,7 +1124,9 @@ fn render_list(arena: &AstArena, first: u32, options: &RenderOptions, cache: Opt
     let mut result = String::new();
     let mut token = first;
     while token != 0 {
-        result.push_str(&render_value_with(arena, token, options, cache, reducer));
+        if !render_simple_into(arena, token, &mut result) {
+            result.push_str(&render_value_with(arena, token, options, cache, reducer));
+        }
         token = arena.next_sibling.get(token);
     }
     result

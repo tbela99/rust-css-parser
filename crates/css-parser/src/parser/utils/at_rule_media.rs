@@ -8,9 +8,8 @@ use crate::options::ParserOptions;
 use crate::parser::utils::text::equals_ignore_case;
 use crate::syntax::constants::{is_function_def_type, mFGT, mFLT, tokens_func_def_map, MEDIA_TYPES};
 use crate::types::ErrorDescription;
-use crate::validation::config::get_parsed_syntax;
-use crate::validation::match_::{create_validation_context, drop_error, get_mf_info, is_mf_value, match_all_syntaxes, trim_array, Syntax};
-use crate::validation::parser::typedef::{MediaFeatureType, ValidationSyntaxGroupEnum};
+use crate::validation::match_::{create_validation_context, drop_error, function_syntax, get_mf_info, is_mf_value, match_all_syntaxes, trim_array, Syntax};
+use crate::validation::parser::typedef::MediaFeatureType;
 
 fn trimmed(arena: &AstArena, tokens: &[u32]) -> Vec<u32> {
     let mut v = tokens.to_vec();
@@ -178,12 +177,10 @@ pub fn parse_mediaquery_list(arena: &AstArena, stream: &mut Vec<u32>, options: &
                             let inner = trimmed(arena, &slice(&tokens, index + 1, tokens.len() as isize - 1));
                             arena.set_token_list(func, &inner);
                             tokens.truncate(index as usize + 1);
-                            let syntax = get_parsed_syntax(
-                                ValidationSyntaxGroupEnum::Syntaxes,
-                                &format!("{}()", arena.resolve_string(arena.string_value.get(func))),
-                            );
-                            let chi: Option<Vec<Syntax>> = syntax.and_then(|s| s.first().map(|f| f.children().to_vec()));
-                            let result = match_all_syntaxes(arena, chi.as_deref(), &create_validation_context(arena, &arena.tokens(func)), options);
+                            // looked up once per function name, the children of the syntax are borrowed
+                            let syntax = function_syntax(arena, func);
+                            let chi: Option<&[Syntax]> = syntax.as_ref().and_then(|s| s.first()).map(|f| f.children());
+                            let result = match_all_syntaxes(arena, chi, &create_validation_context(arena, &arena.tokens(func)), options);
                             stack.pop();
                             scopes.pop();
                             if !result.success {

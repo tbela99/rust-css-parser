@@ -22,7 +22,7 @@ use std::path::PathBuf;
 // (https://github.com/w3c/webref/tree/main/packages/css), pulled from the remote url. the definitions of the levels of a
 // spec and their extensions are merged (the latest level is used). a new version of the package may introduce breaking
 // changes: the version is updated manually
-const WEBREF_URL: &str = "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json";
+const WEBREF_URL: &str = "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json";
 // the csstree patch, written for mdn-data. the version is pinned: the generated syntax file must not change when a new
 // version is published, it is updated manually
 const PATCH_URL: &str = "https://cdn.jsdelivr.net/npm/css-tree@3.2.1/data/patch.json";
@@ -1392,6 +1392,8 @@ fn run() -> Result<()> {
     generator.apply_patches(true, LOCAL_PATCH_URL, &local_patch);
     // the vendor prefixed aliases with a legacy syntax extend the standard syntax
     generator.apply_legacy_syntaxes();
+    // the validation expects one form per at-rule
+    normalize_at_rule_forms(&mut generator.json);
 
     for (name, declaration) in entries(generator.json.get("declarations")) {
         if let Some(alias) = present(&declaration, "alias") {
@@ -1431,6 +1433,70 @@ fn run() -> Result<()> {
     }
 
     Ok(())
+}
+
+/// split a syntax at its top level `|`: the `|` inside `[ ]`, `( )` and `{ }` are not separators
+/// (`splitTopLevelAlternatives()`)
+fn split_top_level_alternatives(syntax: &str) -> Vec<String> {
+    let chars: Vec<char> = syntax.chars().collect();
+    let mut parts: Vec<String> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut start: usize = 0;
+    let mut quote: Option<char> = None;
+
+    for i in 0..chars.len() {
+        let c = chars[i];
+
+        if let Some(q) = quote {
+            if c == q {
+                quote = None;
+            }
+        } else if c == '\'' || c == '"' {
+            quote = Some(c);
+        } else if c == '[' || c == '(' || c == '{' {
+            depth += 1;
+        } else if c == ']' || c == ')' || c == '}' {
+            depth -= 1;
+        } else if c == '|' && depth == 0 && (i == 0 || chars[i - 1] != '|') && chars.get(i + 1) != Some(&'|') {
+            parts.push(chars[start..i].iter().collect::<String>().trim().to_string());
+            start = i + 1;
+        }
+    }
+
+    parts.push(chars[start..].iter().collect::<String>().trim().to_string());
+    parts
+}
+
+/// an at-rule defined with several forms (`@property <custom-property-name># { <declaration-list> } | @property
+/// <custom-property-name> <css-type>? [: <declaration-value>? ]? ;`, webref 8.7.10): the validation splits the syntax
+/// of an at-rule into a prelude and a block, it expects one form. the form with a block is kept, the other forms are
+/// reported (`normalizeAtRuleForms()`)
+fn normalize_at_rule_forms(json: &mut Value) {
+    let Some(Value::Object(at_rules)) = json.get_mut("atRules") else {
+        return;
+    };
+
+    for (name, at_rule) in at_rules.iter_mut() {
+        let Some(syntax) = at_rule.get("syntax").and_then(Value::as_str).map(str::to_string) else {
+            continue;
+        };
+        let forms = split_top_level_alternatives(&syntax);
+
+        // the alternatives of the prelude (`@a b | c { }`) are not forms
+        if forms.len() < 2 || forms.iter().any(|form| !form.starts_with(name.as_str())) {
+            continue;
+        }
+
+        let kept = forms.iter().find(|form| form.contains('{')).unwrap_or(&forms[0]).clone();
+
+        for form in &forms {
+            if *form != kept {
+                eprintln!(">> at-rule form not validated >> {} >> {}", name, form);
+            }
+        }
+
+        at_rule["syntax"] = Value::String(kept);
+    }
 }
 
 /// the root of the repository (the parent of `scripts/`)

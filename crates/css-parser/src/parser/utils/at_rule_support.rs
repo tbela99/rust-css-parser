@@ -6,9 +6,8 @@ use crate::options::ParserOptions;
 use crate::parser::utils::declaration::parse_declaration;
 use crate::syntax::constants::{is_function_def_type, tokens_func_def_map, PSEUDO_ELEMENTS};
 use crate::types::ErrorDescription;
-use crate::validation::config::{get_parsed_syntax, get_syntax_config};
-use crate::validation::match_::{create_validation_context, match_all_syntaxes, trim_array, Syntax};
-use crate::validation::parser::typedef::ValidationSyntaxGroupEnum;
+use crate::validation::config::get_syntax_config;
+use crate::validation::match_::{create_validation_context, match_all_syntaxes, selector_function_syntax, trim_array, Syntax};
 
 fn index_of(v: &[u32], value: Option<u32>) -> isize {
     value.and_then(|value| v.iter().position(|&x| x == value)).map_or(-1, |i| i as isize)
@@ -140,12 +139,10 @@ pub fn parse_at_rule_support_syntax(arena: &AstArena, stream: &mut Vec<u32>, con
                     arena.set_token_list(func, &slice);
                     arena.span_location(func, func, current);
                     if t(tokens[index as usize]) == EnumToken::PseudoClassFuncTokenType {
-                        let syntax = get_parsed_syntax(
-                            ValidationSyntaxGroupEnum::Selectors,
-                            &format!("{}()", arena.resolve_string(arena.string_value.get(tokens[index as usize]))),
-                        );
-                        let chi: Option<Vec<Syntax>> = syntax.and_then(|s| s.first().map(|f| f.children().to_vec()));
-                        let result = match_all_syntaxes(arena, chi.as_deref(), &create_validation_context(arena, &arena.tokens(tokens[index as usize])), options);
+                        // looked up once per function name, the children of the syntax are borrowed
+                        let syntax = selector_function_syntax(arena, tokens[index as usize]);
+                        let chi: Option<&[Syntax]> = syntax.as_ref().and_then(|s| s.first()).map(|f| f.children());
+                        let result = match_all_syntaxes(arena, chi, &create_validation_context(arena, &arena.tokens(tokens[index as usize])), options);
                         if !result.success {
                             return (false, result.errors);
                         }

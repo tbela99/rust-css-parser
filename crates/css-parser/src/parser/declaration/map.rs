@@ -105,7 +105,7 @@ impl PropertyMap {
             let mut tokens: JsMap<Vec<Vec<u32>>> = JsMap::new();
             let mut values: Vec<u32> = Vec::new();
             let mut val: Vec<Vec<u32>> = vec![Vec::new()];
-            for curr in arena.tokens(existing) {
+            for curr in arena.token_iter(existing) {
                 if match_config_token(arena, curr, separator) {
                     val.push(Vec::new());
                     continue;
@@ -324,7 +324,7 @@ impl PropertyMap {
                 let mut filtered: Vec<u32> = Vec::new();
                 for &declaration in &values {
                     let dec = self.remove_defaults_of(arena, declaration, &mut cache);
-                    for t in arena.tokens(dec) {
+                    for t in arena.token_iter(dec) {
                         let typ = arena.data_types.get(t);
                         if typ == EnumToken::ImportantTokenType {
                             is_important = true;
@@ -378,7 +378,7 @@ impl PropertyMap {
             let mut current = 0usize;
             let decls = flatten(arena, &[entry]);
             for declaration in decls {
-                for val in arena.tokens(declaration) {
+                for val in arena.token_iter(declaration) {
                     if match_config_token(arena, val, separator) {
                         current += 1;
                         if let Some(t) = tokens.get_mut(name) {
@@ -693,7 +693,7 @@ impl PropertyMap {
         let mut map: JsMap<TokenMap> = JsMap::new();
         let mut value: Vec<u32> = Vec::new();
         let mut values: Vec<Vec<u32>> = Vec::new();
-        for t in arena.tokens(declaration) {
+        for t in arena.token_iter(declaration) {
             let rendered = cache.entry(t).or_insert_with(|| render_value_minified(arena, t)).clone();
             if arena.data_types.get(t) == typ && separator == rendered {
                 self.remove_defaults(arena, &map, &mut value);

@@ -1,6 +1,6 @@
 {
  "declarations": {
-  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json": [
+  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json": [
    "-webkit-align-content",
    "-webkit-align-items",
    "-webkit-align-self",
@@ -694,6 +694,7 @@
    "text-align-last",
    "text-anchor",
    "text-autospace",
+   "text-autospace-size",
    "text-box",
    "text-box-edge",
    "text-box-trim",
@@ -972,7 +973,7 @@
   ]
  },
  "types": {
-  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json": [
+  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json": [
    "<a-n-plus-b>",
    "<absolute-size>",
    "<alt-text>",
@@ -1056,6 +1057,7 @@
    "<conic-gradient-syntax>",
    "<container-condition>",
    "<container-name>",
+   "<container-query-list>",
    "<container-query>",
    "<content-distribution>",
    "<content-level>",
@@ -1080,7 +1082,6 @@
    "<custom-arg>",
    "<custom-color-space>",
    "<custom-selector>",
-   "<dasharray>",
    "<dashndashdigit-ident>",
    "<default-value>",
    "<deprecated-color>",
@@ -1189,7 +1190,6 @@
    "<location-descriptor>",
    "<location-name>",
    "<location-rule>",
-   "<marker-ref>",
    "<mask-layer>",
    "<mask-reference>",
    "<mask-source>",
@@ -1611,6 +1611,7 @@
    "<if-test>",
    "<keyframe-selectors>",
    "<level>",
+   "<marker-ref>",
    "<media-query-list>",
    "<paint>",
    "<position-four>",
@@ -1671,9 +1672,10 @@
   ]
  },
  "selectors": {
-  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json": [
+  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json": [
    "&",
    "+",
+   "::-webkit-input-placeholder",
    "::after",
    "::backdrop",
    "::before",
@@ -1863,7 +1865,7 @@
   ]
  },
  "atRules": {
-  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json": [
+  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json": [
    "@bottom-center",
    "@color-profile",
    "@container",
@@ -1929,7 +1931,7 @@
   ]
  },
  "descriptors": {
-  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.8/css.json": [
+  "https://cdn.jsdelivr.net/npm/@webref/css@8.7.10/css.json": [
    "@color-profile/components",
    "@color-profile/rendering-intent",
    "@color-profile/src",

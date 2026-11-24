@@ -10,6 +10,12 @@ on:
     branches: [ "master" ]
   # run by publish.yml before publishing
   workflow_call:
+    inputs:
+      ref:
+        description: the commit to test (the merged commit of the pull request)
+        type: string
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -23,6 +29,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # the commit given by publish.yml, the commit of the event otherwise
+          ref: ${{ inputs.ref }}
       # rustup is installed when the runner does not provide it, then the stable toolchain (rustc, cargo) and the
       # WebAssembly target. the build uses `rustup run stable cargo ...`
       - name: Install the rust toolchain (rustc, cargo) and the WebAssembly target
@@ -72,6 +81,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # the commit given by publish.yml, the commit of the event otherwise
+          ref: ${{ inputs.ref }}
       - name: Install the rust toolchain (rustc, cargo)
         shell: bash
         run: |

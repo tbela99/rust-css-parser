@@ -1,6 +1,6 @@
 {
   "name": "@tbela99/rust-css-parser-wasm",
-  "version": "2.2.1",
+  "version": "2.3.1",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

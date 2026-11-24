@@ -19,6 +19,9 @@ npm install-scripts approve @tbela99/rust-css-parser-napi
 npm rebuild @tbela99/rust-css-parser-napi
 ```
 
+JSR does not run install scripts: after `npx jsr add`, build the addon with
+`node node_modules/@tbela99/rust-css-parser-napi/install.js`.
+
 The addon can also be built by hand: `node install.js` in the package directory. Without a Rust toolchain, use
 [@tbela99/rust-css-parser-wasm](https://www.npmjs.com/package/@tbela99/rust-css-parser-wasm).
 

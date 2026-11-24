@@ -3,7 +3,26 @@ name = "rust-css-parser"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Rust port of @tbela99/css-parser"
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Fault-tolerant CSS parser, validator, minifier and renderer: the Rust port of @tbela99/css-parser"
+documentation = "https://docs.rs/rust-css-parser"
+readme = "README.md"
+keywords = ["css", "parser", "minifier", "validator", "sourcemap"]
+categories = ["parser-implementations", "web-programming"]
+# the published crate: the library, its embedded data and the readme. the binaries (src/bin) and the tests are
+# development tools of the repository (the tests read the package.json of the repository)
+include = [
+    "/Cargo.toml",
+    "/build.rs",
+    "/README.md",
+    "/LICENSE.md",
+    "/src/**/*.rs",
+    "/src/data/properties.json",
+    "/src/data/validation.json",
+    "!/src/bin/**",
+]
 
 [lib]
 crate-type = ["rlib"]

@@ -1,6 +1,6 @@
 # TypeScript → Rust port
 
-Source of truth: `../css` (TypeScript, v2.2.0, commit 3056ae75). This crate is a **file-by-file port** of it: each
+Source of truth: `[css-parser](https://github.com/tbela99/css-parser)` (TypeScript). This crate is a **file-by-file port** of it: each
 `src/<path>.ts` becomes `src/<path>.rs` (`-` becomes `_`), keeping the function names
 (snake_case), structure and behaviour. Status: every module is ported; the TypeScript specs pass against the N-API and
 the WASM builds (`npm run test:node`, `npm run test:web`). The previous reimplementation is kept for reference in

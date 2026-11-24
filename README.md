@@ -18,6 +18,44 @@ The repository is a monorepo: a Cargo workspace and an npm workspace.
 | `extensions/css-parser-wasm` | `css-parser-wasm` (cdylib) | `css-parser-wasm` | Node.js and the browsers, WebAssembly module (`css_parser.wasm`) |
 | `bindings/` | | | the JavaScript modules shared by both packages; each package adds its `backend.js` |
 
+## Installation
+
+### From NPM
+
+```shell
+npm install @tbela99/rust-css-parser-wasm   # Node.js and the browsers
+npm install @tbela99/rust-css-parser-napi   # Node.js, macOS and Linux
+```
+
+`@tbela99/rust-css-parser-napi` builds its addon when it is installed: it requires the
+[Rust toolchain](https://rustup.rs) (`cargo`). npm versions that block install scripts need an approval first:
+
+```shell
+npm install-scripts approve @tbela99/rust-css-parser-napi
+npm rebuild @tbela99/rust-css-parser-napi
+```
+
+### From JSR
+
+```shell
+deno add jsr:@tbela99/rust-css-parser-wasm
+npx jsr add @tbela99/rust-css-parser-wasm
+npx jsr add @tbela99/rust-css-parser-napi
+```
+
+JSR does not run install scripts: after installing `@tbela99/rust-css-parser-napi`, build the addon with
+`node node_modules/@tbela99/rust-css-parser-napi/install.js`. With npm 12 or later, `npx jsr add` needs
+`npm_config_allow_remote=all` (npm refuses the JSR tarballs, served from another host, by default).
+
+From Deno, the WebAssembly module is fetched from jsr.io when the package is imported: allow it with
+`deno run --allow-net=jsr.io`.
+
+### From crates.io
+
+```shell
+cargo add rust-css-parser
+```
+
 ## Build
 
 ```shell
@@ -52,22 +90,6 @@ The API is the API of the TypeScript library: see the [guides](files/index.md) a
 [JavaScript API reference](https://tbela99.github.io/css-parser/docs/modules/node.html). The crate can be used from
 Rust: see [Rust API](files/rust.md).
 
-### Install from a branch
-
-The extensions can be installed from git, e.g. the `v.next` branch. `dist/` is not committed: the `prepare` script
-of the package (`scripts/prepare-extension.mjs`) builds it, so the build scripts of the package must be allowed.
-The [Rust toolchain](https://rustup.rs) is required; the WebAssembly package also needs the WebAssembly target
-(`rustup target add wasm32-unknown-unknown`).
-
-```shell
-pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-napi"
-pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-wasm"
-```
-
-pnpm approves the build of a git dependency by its exact commit, not by name: `--allow-build` is not enough. To
-approve one commit only, add the key printed by pnpm (`@tbela99/rust-css-parser-wasm@git+https://...#<commit>&path:...`)
-to `allowBuilds` in `pnpm-workspace.yaml`.
-
 ## Documentation
 
 - [files/](files/index.md): the guides (markdown)
@@ -86,33 +108,18 @@ npm run test:web     # the TypeScript specs against css-parser-wasm in Chromium,
 The specs import `#dist/...` (the `imports` of the root package.json): the `napi` and `wasm` conditions (set by
 `test:napi` and `test:wasm`) select the package, the browsers get `css-parser-wasm`.
 
-
-## Publish
-
-`@tbela99/rust-css-parser-napi` and `@tbela99/rust-css-parser-wasm` are published to npm and to [JSR](https://jsr.io)
-(`extensions/*/package.json`, `extensions/*/jsr.json`; `npm run build` keeps their version in sync with the root
-package.json). Each script builds the extension and runs its specs first.
-
-| Script | Publishes |
-|--------|-----------|
-| `npm run publish:dry-run` | nothing: builds both extensions, lists what npm and JSR would publish |
-| `npm run publish:napi:npm`, `npm run publish:napi:jsr`, `npm run publish:napi` | `@tbela99/rust-css-parser-napi` to npm, JSR, both |
-| `npm run publish:wasm:npm`, `npm run publish:wasm:jsr`, `npm run publish:wasm` | `@tbela99/rust-css-parser-wasm` to npm, JSR, both |
-| `npm run publish:npm`, `npm run publish:jsr`, `npm run publish:all` | both packages to npm, JSR, both |
-
-JSR refuses to publish uncommitted changes: commit first.
-
-`@tbela99/rust-css-parser-napi` does not contain the addon (`*.node` is not published, nor committed): it contains the
-Rust sources (`rust/`, staged by `npm run build:napi`) and its install script (`install.js`) builds the addon on the
-client machine with cargo (macOS and Linux, Rust toolchain required).
-
 ### CI
 
 - `.github/workflows/ci.yml` (push, pull request): the Rust tests and the specs, and `napi-install`: the N-API package
   is packed, installed outside of the repository on Linux and macOS, built from its sources, then smoke tested.
-- `.github/workflows/publish.yml` (a version tag `v*`, or by hand): runs the CI, checks that the tag is the version of
-  package.json, builds once, then publishes both packages to npm (with provenance) and to JSR. Authentication: npm
-  trusted publishing or an `NPM_TOKEN` secret; JSR: link the repository in the settings of each package on jsr.io.
+- `.github/workflows/publish.yml` (a pull request merged into master): when the version of package.json is not
+  published yet, runs the CI on the merged commit, builds once, then publishes both packages to npm (with provenance)
+  and to JSR, and the library (`rust-css-parser`) to crates.io. A version that is already published is skipped:
+  bump the version in the pull request to release it. Authentication: npm trusted publishing or an `NPM_TOKEN` secret; JSR: link the
+  repository in the settings of each package on jsr.io; crates.io: trusted publishing or a `CARGO_REGISTRY_TOKEN`
+  secret.
+- crates.io by hand: `npm run publish:crate` (the Rust tests, then `cargo publish -p rust-css-parser`; `cargo login`
+  first). `npm run publish:dry-run` also packages the crate and builds it from the package.
 
 ## Data
 

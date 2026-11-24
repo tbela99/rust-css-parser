@@ -48,21 +48,57 @@ A non-exhaustive list of features is provided below:
 
 ## Installation
 
-The package is built from the sources. Install the Rust toolchain and the WebAssembly target, then build the N-API
-addon (package `css-parser-napi`), the WebAssembly module (package `css-parser-wasm`) and their JavaScript modules
-into `extensions/*/dist/`:
+Two packages are available:
+
+- `@tbela99/rust-css-parser-wasm`: the WebAssembly module, for Node.js and the browsers
+- `@tbela99/rust-css-parser-napi`: the N-API addon, for Node.js on macOS and Linux (the fastest)
+
+### From NPM
+
+```shell
+$ npm install @tbela99/rust-css-parser-wasm
+$ npm install @tbela99/rust-css-parser-napi
+```
+
+`@tbela99/rust-css-parser-napi` builds its addon when it is installed: it requires the
+[Rust toolchain](https://rustup.rs) (`cargo`). npm versions that block install scripts need an approval first:
+
+```shell
+$ npm install-scripts approve @tbela99/rust-css-parser-napi
+$ npm rebuild @tbela99/rust-css-parser-napi
+```
+
+### From JSR
+
+```shell
+$ deno add jsr:@tbela99/rust-css-parser-wasm
+$ npx jsr add @tbela99/rust-css-parser-wasm
+$ npx jsr add @tbela99/rust-css-parser-napi
+```
+
+JSR does not run install scripts: after installing `@tbela99/rust-css-parser-napi`, build the addon with
+`node node_modules/@tbela99/rust-css-parser-napi/install.js`. With npm 12 or later, `npx jsr add` needs
+`npm_config_allow_remote=all` (npm refuses the JSR tarballs, served from another host, by default).
+
+From Deno, the WebAssembly module is fetched from jsr.io when the package is imported: allow it with
+`deno run --allow-net=jsr.io`.
+
+### From crates.io
+
+The Rust library, see [Rust API](./rust.md):
+
+```shell
+$ cargo add rust-css-parser
+```
+
+### From the sources
+
+Install the Rust toolchain and the WebAssembly target, then build both packages into `extensions/*/dist/`:
 
 ```shell
 $ rustup target add --toolchain stable wasm32-unknown-unknown
 $ npm install
 $ npm run build
-```
-
-To use it from another project, install a package from its directory (or from a tarball created with `npm pack`):
-
-```shell
-$ npm install ../rust-css-parser/extensions/css-parser-napi
-$ npm install ../rust-css-parser/extensions/css-parser-wasm
 ```
 
 ## From node, bun or deno

@@ -2,8 +2,6 @@
 
 import { columnTypes } from "./columns.js";
 
-const isNode = typeof process !== "undefined" && process.versions?.node != null && typeof window === "undefined";
-
 /**
  * the backend of this package
  */
@@ -16,7 +14,9 @@ export async function createBackend() {
     const url = new URL("./css_parser.wasm", import.meta.url);
     let bytes;
 
-    if (isNode) {
+    // the module is read from the disk when the package is a local file (node, bun, deno with npm packages), fetched
+    // otherwise: the browsers, and deno with the jsr package, whose modules are urls of jsr.io
+    if (url.protocol === "file:") {
         const { readFile } = await import("node:fs/promises");
         bytes = await readFile(url);
     } else {

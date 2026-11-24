@@ -1,9 +1,9 @@
 {
   "name": "@tbela99/rust-css-parser",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "private": true,
   "type": "module",
-  "description": "Rust port of @tbela99/css-parser: monorepo of the rust library and its extensions css-parser-napi (node, N-API) and css-parser-wasm (node and the browsers, WebAssembly)",
+  "description": "Rust port of @tbela99/css-parser: monorepo of the rust library and its extensions css-parser-napi (node, deno, bun N-API) and css-parser-wasm (node, deno, bun and the browsers, WebAssembly)",
   "workspaces": [
     "extensions/css-parser-napi",
     "extensions/css-parser-wasm"

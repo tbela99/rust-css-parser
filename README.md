@@ -18,6 +18,44 @@ The repository is a monorepo: a Cargo workspace and an npm workspace.
 | `extensions/css-parser-wasm` | `css-parser-wasm` (cdylib) | `css-parser-wasm` | Node.js and the browsers, WebAssembly module (`css_parser.wasm`) |
 | `bindings/` | | | the JavaScript modules shared by both packages; each package adds its `backend.js` |
 
+## Installation
+
+### From NPM
+
+```shell
+npm install @tbela99/rust-css-parser-wasm   # Node.js and the browsers
+npm install @tbela99/rust-css-parser-napi   # Node.js, macOS and Linux
+```
+
+`@tbela99/rust-css-parser-napi` builds its addon when it is installed: it requires the
+[Rust toolchain](https://rustup.rs) (`cargo`). npm versions that block install scripts need an approval first:
+
+```shell
+npm install-scripts approve @tbela99/rust-css-parser-napi
+npm rebuild @tbela99/rust-css-parser-napi
+```
+
+### From JSR
+
+```shell
+deno add jsr:@tbela99/rust-css-parser-wasm
+npx jsr add @tbela99/rust-css-parser-wasm
+npx jsr add @tbela99/rust-css-parser-napi
+```
+
+JSR does not run install scripts: after installing `@tbela99/rust-css-parser-napi`, build the addon with
+`node node_modules/@tbela99/rust-css-parser-napi/install.js`. With npm 12 or later, `npx jsr add` needs
+`npm_config_allow_remote=all` (npm refuses the JSR tarballs, served from another host, by default).
+
+From Deno, the WebAssembly module is fetched from jsr.io when the package is imported: allow it with
+`deno run --allow-net=jsr.io`.
+
+### From crates.io
+
+```shell
+cargo add rust-css-parser
+```
+
 ## Build
 
 ```shell
@@ -51,22 +89,6 @@ console.log(result.code);
 The API is the API of the TypeScript library: see the [guides](files/index.md) and the
 [JavaScript API reference](https://tbela99.github.io/css-parser/docs/modules/node.html). The crate can be used from
 Rust: see [Rust API](files/rust.md).
-
-### Install from a branch
-
-The extensions can be installed from git, e.g. the `v.next` branch. `dist/` is not committed: the `prepare` script
-of the package (`scripts/prepare-extension.mjs`) builds it, so the build scripts of the package must be allowed.
-The [Rust toolchain](https://rustup.rs) is required; the WebAssembly package also needs the WebAssembly target
-(`rustup target add wasm32-unknown-unknown`).
-
-```shell
-pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-napi"
-pnpm add --config.dangerouslyAllowAllBuilds=true "github:tbela99/rust-css-parser#v.next&path:/extensions/css-parser-wasm"
-```
-
-pnpm approves the build of a git dependency by its exact commit, not by name: `--allow-build` is not enough. To
-approve one commit only, add the key printed by pnpm (`@tbela99/rust-css-parser-wasm@git+https://...#<commit>&path:...`)
-to `allowBuilds` in `pnpm-workspace.yaml`.
 
 ## Documentation
 

@@ -15,6 +15,9 @@ exclude = ["scripts"]
 version = "2.3.0"
 edition = "2021"
 license = "MIT"
+authors = ["Thierry Bela"]
+repository = "https://github.com/tbela99/rust-css-parser"
+homepage = "https://github.com/tbela99/rust-css-parser"
 
 [workspace.dependencies]
 rust-css-parser = { path = "crates/css-parser" }

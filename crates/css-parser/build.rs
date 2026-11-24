@@ -1,10 +1,14 @@
 fn main() {
     // the version of the package (package.json of the repository root), like the typescript build (src/version.ts):
-    // `crate::VERSION`
+    // `crate::VERSION`. the crate published on crates.io has no package.json: the version of the crate, which
+    // build-bindings.sh keeps in sync with package.json
     let manifest = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../../package.json");
     println!("cargo:rerun-if-changed={}", manifest.display());
-    let package = std::fs::read_to_string(&manifest).expect("package.json");
-    println!("cargo:rustc-env=CSS_PARSER_VERSION={}", package_version(&package).expect("package.json: version"));
+    let version = match std::fs::read_to_string(&manifest) {
+        Ok(package) => package_version(&package).expect("package.json: version"),
+        Err(_) => std::env::var("CARGO_PKG_VERSION").unwrap(),
+    };
+    println!("cargo:rustc-env=CSS_PARSER_VERSION={}", version);
 }
 
 /// the value of the top level `"version"` key of package.json

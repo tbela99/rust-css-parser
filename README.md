@@ -91,8 +91,12 @@ The specs import `#dist/...` (the `imports` of the root package.json): the `napi
 - `.github/workflows/ci.yml` (push, pull request): the Rust tests and the specs, and `napi-install`: the N-API package
   is packed, installed outside of the repository on Linux and macOS, built from its sources, then smoke tested.
 - `.github/workflows/publish.yml` (a version tag `v*`, or by hand): runs the CI, checks that the tag is the version of
-  package.json, builds once, then publishes both packages to npm (with provenance) and to JSR. Authentication: npm
-  trusted publishing or an `NPM_TOKEN` secret; JSR: link the repository in the settings of each package on jsr.io.
+  package.json, builds once, then publishes both packages to npm (with provenance) and to JSR, and the library
+  (`rust-css-parser`) to crates.io. Authentication: npm trusted publishing or an `NPM_TOKEN` secret; JSR: link the
+  repository in the settings of each package on jsr.io; crates.io: trusted publishing or a `CARGO_REGISTRY_TOKEN`
+  secret.
+- crates.io by hand: `npm run publish:crate` (the Rust tests, then `cargo publish -p rust-css-parser`; `cargo login`
+  first). `npm run publish:dry-run` also packages the crate and builds it from the package.
 
 ## Data
 

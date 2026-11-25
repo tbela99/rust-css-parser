@@ -14,3 +14,8 @@ export { parseSyntax } from "./validation/parser/parse.js";
 export { ResponseType } from "./enums-extra.js";
 export { dirname, resolve } from "./fs/resolve.js";
 export { version } from "./version.js";
+export { ValidationTokenEnum } from "./validation/parser/typedef.js";
+/**
+ * key of the position of a validation token in the syntax, see {@link ValidationToken}
+ */
+export const LOC = Symbol.for("loc");

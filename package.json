@@ -1,6 +1,6 @@
 {
   "name": "@tbela99/rust-css-parser",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "private": true,
   "type": "module",
   "description": "Rust port of @tbela99/css-parser: monorepo of the rust library and its extensions css-parser-napi (node, deno, bun N-API) and css-parser-wasm (node, deno, bun and the browsers, WebAssembly)",
@@ -10,6 +10,7 @@
   ],
   "imports": {
     "#dist/*": {
+      "coverage": "./target/coverage/napi/*",
       "napi": "./extensions/css-parser-napi/dist/*",
       "wasm": "./extensions/css-parser-wasm/dist/*",
       "default": "./extensions/css-parser-wasm/dist/*"
@@ -25,6 +26,8 @@
     "test:napi": "NODE_OPTIONS=--conditions=napi mocha --timeout 10000 \"test/specs/node.spec.js\"",
     "test:wasm": "NODE_OPTIONS=--conditions=wasm mocha --timeout 10000 \"test/specs/node.spec.js\"",
     "test:web": "web-test-runner \"./test/specs/web.spec.js\" --timeout 30000 --node-resolve --playwright --browsers chromium firefox webkit --root-dir=.",
+    "coverage": "sh scripts/coverage.sh",
+    "coverage:html": "sh scripts/coverage.sh --html --json",
     "verify:napi": "npm run build:napi && npm run test:napi",
     "verify:wasm": "npm run build:wasm && npm run test:wasm && npm run test:web",
     "verify:crate": "npm run test:rust",
@@ -42,7 +45,8 @@
     "syntax-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin webref && npm run syntax-compile",
     "syntax-compile": "cargo run --release --manifest-path scripts/Cargo.toml --bin compile_syntax",
     "config-update": "cargo run --release --manifest-path scripts/Cargo.toml --bin shorthand",
-    "doc": "node scripts/docs.mjs"
+    "types-update": "node scripts/gen-types.js ../css",
+    "doc": "node scripts/docs.js"
   },
   "devDependencies": {
     "@web/test-runner": "^1.0.1",

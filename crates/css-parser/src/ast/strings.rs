@@ -327,6 +327,31 @@ impl Default for StringTable {
 }
 
 impl StringTable {
+    /// approximate number of bytes held by the table: the capacity of its vectors and the code units of the sources.
+    /// reported to the javascript engine by the N-API addon, see [`crate::bindings::take_external_memory`]
+    pub fn memory_size(&self) -> usize {
+        use std::mem::size_of;
+
+        let ints = self.hashes.capacity() + self.sources.capacity() + self.starts.capacity() + self.ends.capacity() + self.slots.capacity() + self.lowers.capacity();
+        let texts: usize = self
+            .texts
+            .iter()
+            .flatten()
+            .map(|t| match t {
+                CodeUnits::Bytes(b) => b.len(),
+                CodeUnits::Utf16(u) => u.len() * 2,
+            })
+            .sum();
+
+        ints * size_of::<i32>()
+            + self.cache.capacity() * size_of::<Option<SharedStr>>()
+            + self.texts.capacity() * size_of::<Option<CodeUnits>>()
+            + self.derived_values.capacity() * size_of::<Option<HashMap<u32, Box<dyn Any>>>>()
+            + self.flags.capacity()
+            + self.pool.capacity() * size_of::<u16>()
+            + texts
+    }
+
     pub fn new() -> Self {
         Self {
             count: 0,

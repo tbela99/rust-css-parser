@@ -162,7 +162,12 @@ fn prepare(input: &Val, options_val: &Val) -> Result<PreparedParse> {
     let source = SourceFile::new(content, Vec::new(), Some(Rc::from(src.as_str())));
     sources.borrow_mut().insert(source.id, source.clone());
     options.source = Some(source.clone());
-    let tokenizer = Tokenizer::new(create_parse_info(Some(&css_input(input)), source));
+    // a stream: the chunks are read by the `stream` callback while the css is parsed
+    let tokenizer = if options.stream.is_some() {
+        Tokenizer::streaming(create_parse_info(None, source), options.stream_size.unwrap_or(0))
+    } else {
+        Tokenizer::new(create_parse_info(Some(&css_input(input)), source))
+    };
     Ok(PreparedParse { tokenizer, options, arena })
 }
 
@@ -229,7 +234,12 @@ fn transform_options(options: &Val) -> Val {
         Val::Object(entries) => entries.clone(),
         _ => Vec::new(),
     };
+    // the fast mode sets the default value of minify (see fastModeOptions)
+    let fast_mode = entries.iter().any(|(k, v)| &**k == "fastMode" && v.truthy());
     for key in ["minify", "removeEmpty", "removeCharset"] {
+        if fast_mode && key == "minify" {
+            continue;
+        }
         match entries.iter_mut().find(|(k, _)| &**k == key) {
             Some((_, v)) if v.is_nullish() => *v = Val::Bool(true),
             Some(_) => {}
@@ -749,8 +759,17 @@ fn arena_method(name: &str, args: &[Val]) -> Result<Val> {
             Val::Undefined
         }
         "getOp" => Val::Num(ar.get_op(id()) as f64),
+        "setOp2" => {
+            ar.set_op2(id(), id_arg(a, 1));
+            Val::Undefined
+        }
+        "getOp2" => Val::Num(ar.get_op2(id()) as f64),
         "copySpan" => {
             ar.copy_span(id(), id_arg(a, 1));
+            Val::Undefined
+        }
+        "setSpandStart" => {
+            ar.set_span_start(id(), arg(a, 1).u32());
             Val::Undefined
         }
         "setSpanEnd" => {

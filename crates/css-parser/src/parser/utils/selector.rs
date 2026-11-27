@@ -11,7 +11,7 @@ use crate::syntax::constants::{is_function_def_type, tokens_func_def_map, COMBIN
 use crate::syntax::syntax::{is_hash, is_ident};
 use crate::types::ErrorDescription;
 use crate::validation::config::{get_parsed_syntax, get_syntax_rule};
-use crate::validation::match_::{create_validation_context, match_all_syntaxes, match_selector_syntax, selector_function_syntax, trim_array};
+use crate::validation::match_::{create_validation_context, match_all_syntaxes, match_selector_syntax, match_simple_selector, selector_function_syntax, trim_array};
 use crate::validation::parser::typedef::{ValidationSyntaxGroupEnum, ValidationTokenEnum};
 use crate::validation::utils::list::split_token_list_comma;
 use std::cell::RefCell;
@@ -245,14 +245,60 @@ fn locate(arena: &AstArena, node: u32, tokens: &[u32]) {
     arena.set_location(node, Some(source_of(arena, first)), Some(arena.get_span_start(first)), Some(arena.get_span_end(last)));
 }
 
+/// true if the token is a keyframe selector: `from`, `to` or a percentage between 0 and 100
+fn is_keyframe_selector_token(arena: &AstArena, token: u32) -> bool {
+    match arena.data_types.get(token) {
+        EnumToken::PercentageTokenType => (0.0..=100.0).contains(&arena.numeric_value.get(token)),
+        EnumToken::IdenTokenType => {
+            let id = arena.string_value.get(token);
+            let code = |k: usize| arena.string_code_at(id, k) | 0x20;
+            // `from` and `to`, case-insensitive
+            match arena.string_length(id) {
+                4 => code(0) == 0x66 && code(1) == 0x72 && code(2) == 0x6f && code(3) == 0x6d,
+                2 => code(0) == 0x74 && code(1) == 0x6f,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+/// true if the selector of a keyframe is a list of `from`, `to` and percentages between 0 and 100, separated by commas
+/// and whitespace: it matches the `keyframe-selectors` syntax
+fn is_simple_keyframe_selector(arena: &AstArena, tokens: &[u32]) -> bool {
+    // a keyframe selector is expected
+    let mut selector = true;
+    for &token in tokens {
+        let typ = arena.data_types.get(token);
+        if typ == EnumToken::WhitespaceTokenType {
+            continue;
+        }
+        if selector {
+            if !is_keyframe_selector_token(arena, token) {
+                return false;
+            }
+        } else if typ != EnumToken::CommaTokenType {
+            return false;
+        }
+        selector = !selector;
+    }
+    !selector
+}
+
 /// parse a selector: a rule or a keyframes rule
 pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u32>, options: &ParserOptions, errors: &mut Vec<ErrorDescription>) -> u32 {
     let t = |x: u32| arena.data_types.get(x);
     let context_type = context.map(t);
     split_unicode_ranges(arena, tokens);
     if context_type == Some(EnumToken::KeyframesAtRuleNodeType) {
-        let syntax = get_parsed_syntax(ValidationSyntaxGroupEnum::Syntaxes, "keyframe-selectors");
-        let result = match_all_syntaxes(arena, syntax.as_deref().map(|v| v.as_slice()), &create_validation_context(arena, tokens), options);
+        // `from`, `to` and the percentages are valid: the syntax is not matched
+        let (success, result_errors) = if is_simple_keyframe_selector(arena, tokens) {
+            (true, Vec::new())
+        } else {
+            let syntax = get_parsed_syntax(ValidationSyntaxGroupEnum::Syntaxes, "keyframe-selectors");
+            let result = match_all_syntaxes(arena, syntax.as_deref().map(|v| v.as_slice()), &create_validation_context(arena, tokens), options);
+            (result.success, result.errors)
+        };
         let mut parts = split_token_list_comma(arena, tokens);
         for part in parts.iter_mut() {
             trim_array(arena, part);
@@ -291,8 +337,8 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
             EnumToken::KeyframesRuleNodeType,
             StrOrId::Str(&sel),
             if tokens.is_empty() { None } else { Some(tokens) },
-            if result.success { EnumAstNodeStatus::Validated } else { EnumAstNodeStatus::Invalid },
-            Some(result.errors),
+            if success { EnumAstNodeStatus::Validated } else { EnumAstNodeStatus::Invalid },
+            Some(result_errors),
         );
         locate(arena, node, tokens);
         return node;
@@ -427,9 +473,11 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
     }
     std::mem::swap(tokens, &mut *all);
     drop(all);
-    let (success, result_errors) = match_selector_syntax(arena, tokens, errors, options, nested);
+    // a selector made of simple selectors is valid, it has no attribute selector and no function
+    let simple = match_simple_selector(arena, tokens);
+    let (success, result_errors) = if simple { (true, Vec::new()) } else { match_selector_syntax(arena, tokens, errors, options, nested) };
     trim_array(arena, tokens);
-    if success {
+    if success && !simple {
         let mut i: isize = 0;
         while (i as usize) < tokens.len() {
             let token = tokens[i as usize];
@@ -483,7 +531,7 @@ pub fn parse_selector(arena: &AstArena, tokens: &mut Vec<u32>, context: Option<u
             i += 1;
         }
     }
-    let sel = render_selector(arena, tokens);
+    let sel = if simple { render_simple_selector(arena, tokens) } else { render_selector(arena, tokens) };
     let state = if success && allowed {
         EnumAstNodeStatus::Validated
     } else if allowed {
@@ -647,6 +695,27 @@ fn add_selector_codes(b: &mut Buffers, mut count: usize, selectors: usize) -> us
     b.selector_offsets[selectors * 2] = start;
     b.selector_offsets[selectors * 2 + 1] = end;
     selectors + 1
+}
+
+/// selector of a rule made of simple selectors (see [`match_simple_selector`]), without the leading and the trailing
+/// whitespace: the string of a single token is used as is, a compound or a complex selector is built without
+/// [`render_selector`]. a selector list is rendered with [`render_selector`]: the duplicate selectors are removed
+fn render_simple_selector(arena: &AstArena, tokens: &[u32]) -> u32 {
+    // rendered as their string by append_selector_token()
+    if tokens.len() == 1 && arena.data_types.get(tokens[0]) != EnumToken::PseudoElementTokenType {
+        return arena.string_value.get(tokens[0]);
+    }
+    if tokens.iter().any(|&x| arena.data_types.get(x) == EnumToken::CommaTokenType) {
+        return render_selector(arena, tokens);
+    }
+    let mut selector = BUFFERS.with(|b| std::mem::take(&mut b.borrow_mut().selector));
+    selector.reset();
+    for &token in tokens {
+        append_selector_token(arena, token, &mut selector);
+    }
+    let id = arena.intern_builder(&selector);
+    BUFFERS.with(|b| b.borrow_mut().selector = selector);
+    id
 }
 
 /// selector of a rule: the distinct comma separated selectors, interned. no string is created

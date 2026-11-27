@@ -2,6 +2,7 @@
 // are completed like the typescript entry points, the work is done by rust.
 
 import { readAll, rt as defaultRuntime, runtimeOf } from "./core.js";
+import { getStreamSize } from "./runtime.js";
 import "./ast/arena.js";
 import { ModuleScopeEnumOptions } from "./ast/types.js";
 import { ResponseType } from "./enums-extra.js";
@@ -46,7 +47,10 @@ function transformResult(result) {
 
 function transformDefaults(options) {
     options = { ...options };
-    options.minify ??= true;
+    // the fast mode sets the default value of minify (see fastModeOptions)
+    if (!options.fastMode) {
+        options.minify ??= true;
+    }
     options.removeEmpty ??= true;
     options.removeCharset ??= true;
     return options;
@@ -65,6 +69,39 @@ function splitArguments(args, stream) {
 }
 
 /**
+ * the arguments of an async parse: a stream is read by rust while the css is parsed, chunk by chunk. the `stream`
+ * option is the reader of the chunks: it returns the next chunk (bytes or text), `null` at the end of the stream
+ * @param input the css: a string, an ArrayBuffer, a view of an ArrayBuffer or a stream
+ * @param options
+ */
+function streamArguments(input, options) {
+    if (typeof ReadableStream === "undefined" || !(input instanceof ReadableStream)) {
+        return [input, options];
+    }
+
+    const reader = input.getReader();
+
+    return [
+        null,
+        {
+            ...options,
+            // the size of the css when it is known: rust allocates the code units and the arena once
+            streamSize: getStreamSize(input),
+            stream: async function stream() {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    reader.releaseLock();
+                    return null;
+                }
+
+                return value;
+            },
+        },
+    ];
+}
+
+/**
  * @param host `{ load, cwd(), runtime }`: the default loader, the current directory of the platform and the runtime of
  * the backend (the default runtime when it is not set)
  */
@@ -79,6 +116,8 @@ export function createApi(host) {
     function parseSync(...args) {
         const [stream, options] = splitArguments(args, false);
 
+        options?.signal?.throwIfAborted();
+
         if (options != null) {
             validateSyncArguments(options);
         }
@@ -88,6 +127,8 @@ export function createApi(host) {
 
     function transformSync(...args) {
         const [stream, opts] = splitArguments(args, false);
+
+        opts?.signal?.throwIfAborted();
 
         if (opts != null) {
             validateSyncArguments(opts);
@@ -110,17 +151,21 @@ export function createApi(host) {
     async function parse(...args) {
         const [stream, options = {}, file] = splitArguments(args, true);
 
+        options.signal?.throwIfAborted();
+
         if (file != null) {
             return loadFile(file, options).then((stream) => parse(stream, { src: file, ...options }));
         }
 
-        const input = await readAll(stream);
-
-        return rt.run(rt.call("parse", input, { ...options, load: options.load ?? load, cwd: options.cwd ?? host.cwd() }));
+        return rt.run(
+            rt.call("parse", ...streamArguments(stream, { ...options, load: options.load ?? load, cwd: options.cwd ?? host.cwd() })),
+        );
     }
 
     async function transform(...args) {
         const [stream, opts = {}, file] = splitArguments(args, true);
+
+        opts.signal?.throwIfAborted();
 
         if (file != null) {
             return loadFile(file, opts).then((stream) => transform(stream, { src: file, ...opts }));
@@ -131,9 +176,7 @@ export function createApi(host) {
         options.load ??= load;
         options.cwd ??= host.cwd();
 
-        const input = await readAll(stream);
-
-        return transformResult(await rt.run(rt.call("transform", input, options)));
+        return transformResult(await rt.run(rt.call("transform", ...streamArguments(stream, options))));
     }
 
     return { render, parse, parseSync, transform, transformSync };

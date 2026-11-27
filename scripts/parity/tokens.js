@@ -1,5 +1,5 @@
 // dump the tokens of css files with the typescript tokenizer (parity check with src/bin/tokens.rs)
-// usage: node scripts/parity/tokens.mjs <typescript dist dir> files...
+// usage: node scripts/parity/tokens.js <typescript dist dir> files...
 import { readFileSync } from "node:fs";
 const [dist, ...files] = process.argv.slice(2);
 const { Tokenizer, createParseInfo } = await import(`${dist}/parser/tokenize.js`);

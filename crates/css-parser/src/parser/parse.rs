@@ -98,7 +98,8 @@ pub fn create_comment_node(arena: &AstArena, token: u32) -> u32 {
 
 /// initial arena capacity: one node for every 4 bytes of css
 pub fn arena_capacity(tokenizer: &Tokenizer) -> usize {
-    let length = tokenizer.stream_length();
+    // a stream: the size of the css when it is known, the arena is allocated as for an ArrayBuffer
+    let length = tokenizer.stream_length().max(tokenizer.expected_length());
     if length == 0 {
         4096
     } else {
@@ -139,6 +140,19 @@ pub fn allocate_token(arena: &AstArena, tokenizer: &mut Tokenizer, source_index:
     item
 }
 
+/// allocate a whitespace token
+pub fn allocate_whitespace(arena: &AstArena, source_index: u32, start: u32, end: u32) -> u32 {
+    let item = arena.allocate();
+    arena.data_types.set(item, EnumToken::WhitespaceTokenType);
+    arena.set_token_location(item, source_index, start, end);
+    item
+}
+
+/// true if the token ends a statement or a block: the whitespace that precedes it is not significant
+pub fn is_statement_end(t: u8) -> bool {
+    matches!(t, EnumToken::SemiColonTokenType | EnumToken::BlockStartTokenType | EnumToken::BlockEndTokenType | EnumToken::EOFTokenType)
+}
+
 /// recycle the tokens of a statement that were not attached to the tree
 pub fn recycle_statement_tokens(
     arena: &AstArena,
@@ -148,8 +162,14 @@ pub fn recycle_statement_tokens(
     invalid_nodes: &[u32],
     invalid_start: usize,
 ) {
+    // the statement has errors or invalid nodes: the tokens they reference are kept
+    let references = errors.len() > error_start || invalid_nodes.len() > invalid_start;
     for &token in tokens {
         if arena.data_types.get(token) == 0 || arena.parents.get(token) != 0 || arena.first_child.get(token) != 0 || arena.first_token.get(token) != 0 {
+            continue;
+        }
+        if !references {
+            arena.recycle(token);
             continue;
         }
         let mut referenced = invalid_nodes.get(invalid_start..).is_some_and(|v| v.contains(&token));

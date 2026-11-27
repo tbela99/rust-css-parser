@@ -15,15 +15,23 @@ pub mod value;
 
 use crate::ast::arena::AstArena;
 use crate::host::{Host, HostError, HostValue};
-use std::cell::RefCell;
+use crate::utils::fx::HashMap;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use value::Val;
 
 thread_local! {
     /// the exchange buffer
     pub static EXCHANGE: RefCell<Vec<u8>> = RefCell::new(Vec::with_capacity(1 << 16));
-    /// the arenas used by javascript, by handle (1 based). a handle is released by `freeArena`
-    static ARENAS: RefCell<Vec<Option<Rc<AstArena>>>> = const { RefCell::new(Vec::new()) };
+    /// the arenas used by javascript, by handle (1 based), with the memory reported for them. a handle is released by
+    /// `freeArena`
+    static ARENAS: RefCell<Vec<Option<(Rc<AstArena>, usize)>>> = const { RefCell::new(Vec::new()) };
+    /// the handle of an arena, by address
+    static HANDLES: RefCell<HashMap<usize, u32>> = RefCell::new(HashMap::default());
+    /// the released handles, reused first
+    static FREE_HANDLES: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+    /// change of the memory held by the arenas of javascript since the last [`take_external_memory`]
+    static EXTERNAL_MEMORY: Cell<i64> = const { Cell::new(0) };
     /// the backend callback function: encoded request -> encoded result (`None` outside of a binding)
     static HOST_CALL: RefCell<Option<fn(&[u8]) -> Vec<u8>>> = const { RefCell::new(None) };
 }
@@ -80,32 +88,56 @@ pub fn set_host_call(f: fn(&[u8]) -> Vec<u8>) {
 
 /// the handle of an arena: an arena already known keeps its handle
 pub fn arena_handle(arena: &Rc<AstArena>) -> u32 {
-    ARENAS.with(|a| {
+    let address = Rc::as_ptr(arena) as usize;
+
+    if let Some(handle) = HANDLES.with(|h| h.borrow().get(&address).copied()) {
+        return handle;
+    }
+
+    // the memory of the arena is reported to the javascript engine: it is released when javascript drops the arena
+    let size = arena.memory_size();
+    EXTERNAL_MEMORY.with(|m| m.set(m.get() + size as i64));
+
+    let handle = ARENAS.with(|a| {
         let mut arenas = a.borrow_mut();
-        if let Some(index) = arenas.iter().position(|x| x.as_ref().is_some_and(|x| Rc::ptr_eq(x, arena))) {
-            return index as u32 + 1;
+        match FREE_HANDLES.with(|f| f.borrow_mut().pop()) {
+            Some(handle) => {
+                arenas[handle as usize - 1] = Some((arena.clone(), size));
+                handle
+            }
+            None => {
+                arenas.push(Some((arena.clone(), size)));
+                arenas.len() as u32
+            }
         }
-        if let Some(index) = arenas.iter().position(|x| x.is_none()) {
-            arenas[index] = Some(arena.clone());
-            return index as u32 + 1;
-        }
-        arenas.push(Some(arena.clone()));
-        arenas.len() as u32
-    })
+    });
+
+    HANDLES.with(|h| h.borrow_mut().insert(address, handle));
+    handle
 }
 
 /// the arena of a handle
 pub fn arena_of(handle: u32) -> Result<Rc<AstArena>, HostError> {
-    ARENAS.with(|a| a.borrow().get((handle as usize).wrapping_sub(1)).cloned().flatten()).ok_or_else(|| HostError(format!("invalid arena handle {}", handle)))
+    ARENAS.with(|a| a.borrow().get((handle as usize).wrapping_sub(1)).and_then(|x| x.as_ref().map(|(arena, _)| arena.clone())))
+        .ok_or_else(|| HostError(format!("invalid arena handle {}", handle)))
 }
 
 /// release a handle: the arena is dropped when no other reference remains
 pub fn free_arena(handle: u32) {
-    ARENAS.with(|a| {
-        if let Some(slot) = a.borrow_mut().get_mut((handle as usize).wrapping_sub(1)) {
-            *slot = None;
-        }
-    });
+    let released = ARENAS.with(|a| a.borrow_mut().get_mut((handle as usize).wrapping_sub(1)).and_then(|slot| slot.take()));
+
+    if let Some((arena, size)) = released {
+        HANDLES.with(|h| h.borrow_mut().remove(&(Rc::as_ptr(&arena) as usize)));
+        FREE_HANDLES.with(|f| f.borrow_mut().push(handle));
+        EXTERNAL_MEMORY.with(|m| m.set(m.get() - size as i64));
+    }
+}
+
+/// the change of the memory held by the arenas of javascript since the last call (bytes, negative when arenas were
+/// released). the N-API backend reports it to V8 (`napi_adjust_external_memory`): V8 collects the arenas that are
+/// no longer used sooner, its heap does not show their memory
+pub fn take_external_memory() -> i64 {
+    EXTERNAL_MEMORY.with(|m| m.replace(0))
 }
 
 /// call a javascript callback: `[callback id, arena, ...arguments]` -> result

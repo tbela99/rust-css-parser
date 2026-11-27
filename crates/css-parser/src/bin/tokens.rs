@@ -1,4 +1,4 @@
-//! dump the tokens of css files (parity check with the typescript tokenizer, see scripts/parity/tokens.mjs)
+//! dump the tokens of css files (parity check with the typescript tokenizer, see scripts/parity/tokens.js)
 use rust_css_parser::ast::arena::AstArena;
 use rust_css_parser::parser::input::CssInput;
 use rust_css_parser::parser::tokenize::{TokenValueField, Tokenizer};

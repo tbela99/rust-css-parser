@@ -24,7 +24,7 @@ macro_rules! to_token {
 to_token!(hex2oklch_token, hex2oklchvalues);
 to_token!(rgb2oklch_token, rgb2oklchvalues);
 to_token!(hsl2oklch_token, hsl2oklchvalues);
-to_token!(hwb2oklch_token, hwb2oklchvalues_opt);
+to_token!(hwb2oklch_token, hwb2oklchvalues);
 to_token!(cmyk2oklch_token, cmyk2oklchvalues);
 to_token!(lab2oklch_token, lab2oklchvalues);
 to_token!(oklab2oklch_token, oklab2oklchvalues);
@@ -57,12 +57,8 @@ pub fn hsl2oklchvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
 }
 
 /// typescript: `hwb2oklabvalues(...) as number[]` (a `null` result throws)
-pub fn hwb2oklchvalues(arena: &AstArena, token: u32) -> Vec<f64> {
-    lab2lch(&hwb2oklabvalues(arena, token).unwrap_or_default())
-}
-
-fn hwb2oklchvalues_opt(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
-    Some(hwb2oklchvalues(arena, token))
+pub fn hwb2oklchvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
+    Some(lab2lch(&hwb2oklabvalues(arena, token)?))
 }
 
 pub fn cmyk2oklchvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {

@@ -114,9 +114,8 @@ pub fn xyz2srgb(x: f64, y: f64, z: f64, alpha: Option<f64>) -> Vec<f64> {
 }
 
 pub fn hwb2srgbvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
-    let Some(v) = hwbvalues(arena, token) else {
-        return Some(Vec::new());
-    };
+    // the components cannot be computed: var(), ...
+    let v = hwbvalues(arena, token)?;
     let mut rgb = hwb2srgb(v.h, v.w, v.b, None);
     if let Some(a) = v.a {
         if a != 1.0 {

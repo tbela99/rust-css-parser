@@ -36,6 +36,7 @@ extern "C" {
     fn napi_get_undefined(env: napi_env, result: *mut napi_value) -> napi_status;
     fn napi_get_and_clear_last_exception(env: napi_env, result: *mut napi_value) -> napi_status;
     fn napi_is_exception_pending(env: napi_env, result: *mut bool) -> napi_status;
+    fn napi_adjust_external_memory(env: napi_env, change_in_bytes: i64, adjusted_value: *mut i64) -> napi_status;
 }
 
 thread_local! {
@@ -148,6 +149,13 @@ unsafe extern "C" fn call(env: napi_env, info: napi_callback_info) -> napi_value
     let copied = NO_EXTERNAL.with(|n| n.get());
     let result = bindings::call(length);
     ENV.with(|e| e.set(previous));
+    // the memory of the arenas created or released by the call: V8 schedules the garbage collection (and the release
+    // of the arenas by the finalization registry of bindings/ast/arena.js) according to it
+    let change = bindings::take_external_memory();
+    if change != 0 {
+        let mut adjusted = 0i64;
+        napi_adjust_external_memory(env, change, &mut adjusted);
+    }
     let moved = buffer_changed() || copied;
     js_number(env, if moved { -(result as f64) - 1.0 } else { result as f64 })
 }

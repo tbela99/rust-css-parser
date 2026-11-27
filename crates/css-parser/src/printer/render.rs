@@ -1428,19 +1428,16 @@ fn minify_gradient(arena: &AstArena, token: u32, slice: &mut Vec<u32>) {
                     let iden = |v: &str| arena.create_token(EnumToken::IdenTokenType, TokenValue::Str(v), None);
                     match key.as_str() {
                         "50% 50%" | "center center" | "50%" | "center" => positions.clear(),
-                        "0% 0%" | "0 0" | "top left" | "left top" => positions = vec![pc(0.0)],
+                        // a single value is centered vertically: both values are kept
+                        "0% 0%" | "0 0" | "top left" | "left top" => positions = vec![pc(0.0), ws(0), pc(0.0)],
                         "50% 0%" | "50% 0" | "center top" | "top center" => positions = vec![iden("top")],
                         "top right" | "right top" => positions = vec![pc(100.0), ws(0), pc(0.0)],
                         "0 50%" | "0% 50%" | "left center" | "center left" => positions = vec![iden("left")],
                         "100% 50%" | "right center" | "center right" => positions = vec![iden("right")],
-                        "0 100%" | "0% 100%" | "left bottom" | "bottom left" => positions = vec![iden("bottom")],
+                        "0 100%" | "0% 100%" | "left bottom" | "bottom left" => positions = vec![pc(0.0), ws(0), pc(100.0)],
                         "50% 100%" | "center bottom" | "bottom center" => positions = vec![iden("bottom")],
-                        "100% 100%" | "right bottom" | "bottom right" => positions = vec![pc(100.0)],
-                        _ => {
-                            if position1 == position2 {
-                                positions = positions.get(k).copied().into_iter().collect();
-                            }
-                        }
+                        "100% 100%" | "right bottom" | "bottom right" => positions = vec![pc(100.0), ws(0), pc(100.0)],
+                        _ => {}
                     }
                 }
             }

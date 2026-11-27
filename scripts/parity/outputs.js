@@ -1,5 +1,5 @@
 // byte-for-byte comparison of the rust bindings with the typescript build:
-// `node scripts/parity/outputs.mjs <typescript dist directory> [rust dist directory]`
+// `node scripts/parity/outputs.js <typescript dist directory> [rust dist directory]`
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";

@@ -93,6 +93,69 @@ pub fn trim_array(arena: &AstArena, tokens: &mut Vec<u32>) {
     }
 }
 
+/// true if the token is a simple selector without arguments: a type (`a`), an id (`#a`), a class (`.a`), a
+/// pseudo-class (`:hover`) or a pseudo-element (`::before`)
+fn is_simple_selector_token(t: u8) -> bool {
+    matches!(
+        t,
+        EnumToken::ClassSelectorTokenType
+            | EnumToken::IdenTokenType
+            | EnumToken::PseudoElementTokenType
+            | EnumToken::PseudoClassTokenType
+            | EnumToken::HashTokenType
+    )
+}
+
+/// match a selector made of simple selectors (see [`is_simple_selector_token`]), separated by whitespace (the
+/// descendant combinator) and by commas: `.a:hover`, `.a .b`, `.a, #b`. such a selector is valid: the whitespace
+/// around the commas is removed, the tokens are the tokens produced by [`match_selector_syntax`]. the tokens of
+/// another selector are not changed. returns true if the selector is made of simple selectors
+pub fn match_simple_selector(arena: &AstArena, tokens: &mut Vec<u32>) -> bool {
+    let t = |x: u32| arena.data_types.get(x);
+    // a simple selector is expected: at the start of the selector and after a comma
+    let mut expected = true;
+    let mut comma_whitespace = false;
+    for i in 0..tokens.len() {
+        let typ = t(tokens[i]);
+        if is_simple_selector_token(typ) {
+            expected = false;
+            continue;
+        }
+        if typ == EnumToken::WhitespaceTokenType {
+            // leading whitespace
+            if i == 0 {
+                return false;
+            }
+            // whitespace after a comma or before a comma
+            if expected || tokens.get(i + 1).is_some_and(|&x| t(x) == EnumToken::CommaTokenType) {
+                comma_whitespace = true;
+            }
+            continue;
+        }
+        if typ != EnumToken::CommaTokenType || expected {
+            return false;
+        }
+        expected = true;
+    }
+    if expected {
+        return false;
+    }
+    if comma_whitespace {
+        let original: Vec<u32> = tokens.clone();
+        tokens.clear();
+        for (i, &token) in original.iter().enumerate() {
+            if t(token) == EnumToken::WhitespaceTokenType
+                && ((i > 0 && t(original[i - 1]) == EnumToken::CommaTokenType)
+                    || original.get(i + 1).is_some_and(|&x| t(x) == EnumToken::CommaTokenType))
+            {
+                continue;
+            }
+            tokens.push(token);
+        }
+    }
+    true
+}
+
 /// `ValidationMediaFeature`
 pub fn get_mf_info(feature_name: &str) -> Option<&'static serde_json::Value> {
     get_syntax_config()["mediaFeatures"].get(feature_name.to_lowercase())

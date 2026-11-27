@@ -1,4 +1,4 @@
-//! render a css file (parity check, see scripts/parity/render.mjs)
+//! render a css file (parity check, see scripts/parity/render.js)
 use rust_css_parser::host::NoHost;
 use rust_css_parser::options::{ParserOptions, SourcesMap};
 use rust_css_parser::parser::input::CssInput;

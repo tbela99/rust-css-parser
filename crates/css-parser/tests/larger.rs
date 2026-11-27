@@ -26,8 +26,10 @@ fn larger_css_is_parsed_and_minified() {
     let elapsed = start.elapsed();
 
     assert!(!result.errors.is_empty());
-    // minified: about 8% of the input
-    assert!(out.code().len() > 1_000_000 && out.code().len() < 2_000_000, "{}", out.code().len());
-    // a debug build is slower: the bound only catches a quadratic regression
-    assert!(elapsed < Duration::from_secs(if cfg!(debug_assertions) { 60 } else { 10 }), "{:?}", elapsed);
+    // minified: about 40% of the input. 21 MB of the input are in `@media not all and (...)` blocks
+    assert!(out.code().len() > 8_000_000 && out.code().len() < 11_000_000, "{}", out.code().len());
+    // a debug build and a build instrumented for the coverage (scripts/coverage.sh) are slower: the bound only catches a
+    // quadratic regression
+    let slow = cfg!(debug_assertions) || std::env::var_os("CARGO_LLVM_COV").is_some();
+    assert!(elapsed < Duration::from_secs(if slow { 60 } else { 10 }), "{:?}", elapsed);
 }

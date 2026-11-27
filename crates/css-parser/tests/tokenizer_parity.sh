@@ -8,7 +8,7 @@ rustup run stable cargo build --release -p rust-css-parser --bin tokens >/dev/nu
 tmp=$(mktemp -d)
 status=0
 find "$ts/test" -name '*.css' | sort | while read -r f; do
-    node scripts/parity/tokens.mjs "$(cd "$ts" && pwd)/dist" "$f" > "$tmp/ts.txt"
+    node scripts/parity/tokens.js "$(cd "$ts" && pwd)/dist" "$f" > "$tmp/ts.txt"
     ./target/release/tokens "$f" > "$tmp/rs.txt"
     if ! cmp -s "$tmp/ts.txt" "$tmp/rs.txt"; then echo "DIFF $f"; status=1; fi
 done

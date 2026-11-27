@@ -67,6 +67,59 @@ jobs:
       - name: Specs (css-parser-wasm in the browsers)
         run: npm run test:web
 
+  # coverage of the rust code by the rust tests and the specs (scripts/coverage.sh): the report is uploaded as an
+  # artifact, the totals are written to the summary of the job
+  coverage:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Install the rust toolchain (rustc, cargo) and the llvm tools
+        run: |
+          if ! command -v rustup > /dev/null; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup toolchain install stable --profile minimal --component cargo --component llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+      - name: Install NPM dependencies
+        run: npm install --include=dev
+      - name: Coverage
+        run: sh scripts/coverage.sh --html --lcov --json --fail-under-lines 85
+      - name: Summary
+        if: always()
+        run: |
+          summary=target/coverage/coverage-summary.json
+          if [ -f "$summary" ]; then
+            node -e '
+          const { total } = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+          const row = (name, t) => `| ${name} | ${t.pct}% | ${t.covered} / ${t.total} |`;
+          console.log(["## Rust coverage", "", "| | Coverage | Covered |", "|---|---:|---:|",
+            row("Lines", total.lines), row("Functions", total.functions), row("Regions", total.regions)].join("\n"));
+          ' "$summary" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage
+          path: |
+            target/coverage/html
+            target/coverage/lcov.info
+            target/coverage/coverage-summary.json
+          if-no-files-found: ignore
+
   # the N-API package as a client installs it: the tarball has no addon, the install script builds it from the rust
   # sources of the package (rust/)
   napi-install:

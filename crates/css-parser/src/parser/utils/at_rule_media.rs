@@ -109,7 +109,28 @@ pub fn parse_mediaquery_list(arena: &AstArena, stream: &mut Vec<u32>, options: &
             tokens.push(stream[i]);
             i += 1;
         }
-        if i < stream.len() {
+        // [not | only] <media-type> [ and <media-condition-without-or> ]?
+        let mut modifier: Option<String> = None;
+        if i < stream.len() && t(stream[i]) == EnumToken::IdenTokenType {
+            let val = arena.resolve_string(arena.string_value.get(stream[i])).to_lowercase();
+            if val == "not" || val == "only" {
+                modifier = Some(val);
+                tokens.push(stream[i]);
+                i += 1;
+                while i < stream.len() && is_ws(arena, stream[i]) {
+                    tokens.push(stream[i]);
+                    i += 1;
+                }
+            }
+        }
+        if modifier.is_some() && i == stream.len() {
+            success = false;
+            errors.push(drop_error(arena, "expecting '<media-type>'".into(), stream[i - 1], options));
+        } else if modifier.as_deref() == Some("only") && t(stream[i]) != EnumToken::IdenTokenType {
+            // only is followed by a media type
+            success = false;
+            errors.push(drop_error(arena, "expecting '<media-type>'".into(), stream[i], options));
+        } else if i < stream.len() {
             if t(stream[i]) == EnumToken::IdenTokenType {
                 let val = arena.resolve_string(arena.string_value.get(stream[i])).to_lowercase();
                 if MEDIA_TYPES.contains(&val.as_str()) {

@@ -7,19 +7,21 @@
 
 use crate::ast::arena::{AstArena, TokenField};
 use crate::ast::features::mixin::evaluate_mixins;
-use crate::ast::minify::minify;
+use crate::ast::minify::{merge_rules, minify};
 use crate::ast::types::{EnumAstNodeStatus, EnumToken, ModuleCaseTransformEnum as Case, ModuleScopeEnumOptions as Scope, WalkerEvent};
 use crate::ast::walk::{NodeWalker, ValueWalker, WalkerValueOptions, WalkerValueResult};
 use crate::fs::resolve::{dirname, resolve};
 use crate::host::{resolve as await_host, Host, HostDef, HostError, HostValue};
+use crate::ast::types::MergeRulesEnum;
 use crate::options::{ModuleOption, ModuleScoped, ParserOptions, RemoveDuplicateDeclarations, SourceMapOption};
 use crate::parser::input::CssInput;
 use crate::parser::parse::{
-    allocate_token, arena_capacity, drop_invalid_nodes, get_key_name, is_bad_token, is_definition_block, parse_node, parse_string,
+    allocate_token, allocate_whitespace, arena_capacity, drop_invalid_nodes, get_key_name, is_bad_token, is_definition_block, is_statement_end, parse_node, parse_string,
     recycle_statement_tokens, render_tokens, ParseResultStats,
 };
 use crate::parser::source::SourceFile;
-use crate::parser::tokenize::{create_parse_info, Tokenizer};
+use crate::parser::tokenize::{create_parse_info, StreamChunk, Tokenizer};
+use crate::parser::utils::codes::CodeUnits;
 use crate::parser::utils::hash::{hash, sync_hash, HASH_ALGORITHMS};
 use crate::parser::utils::text::{camelize, equals_ignore_case};
 use crate::plain::{Plain, PlainObject};
@@ -104,6 +106,11 @@ pub fn do_parse(tokenizer: Tokenizer, options: ParserOptions, arena: Option<Rc<A
 /// the default options of `doParse()`, then the options of the caller
 fn with_defaults(options: ParserOptions) -> ParserOptions {
     let mut o = options;
+    // the fast mode settings (`fastModeOptions`), an option given explicitly takes precedence
+    if o.fast_mode == Some(true) {
+        o.minify.get_or_insert(false);
+        o.merge_rules.get_or_insert(MergeRulesEnum::None);
+    }
     o.src.get_or_insert_with(String::new);
     o.sourcemap.get_or_insert(SourceMapOption::Off);
     o.minify.get_or_insert(true);
@@ -136,6 +143,23 @@ fn module_is_set(module: &Option<ModuleOption>) -> bool {
         Some(ModuleOption::Flags(f)) => *f != 0,
         Some(ModuleOption::Options(_)) => true,
     }
+}
+
+/// read the next chunk of a stream (the `stream` callback of the options) and append it to the code units of the
+/// tokenizer. the strings of the tokens are ranges of the code units read so far: the source text of the arena is set
+/// again
+async fn read_chunk(tokenizer: &mut Tokenizer, arena: &AstArena, source_index: usize, options: &ParserOptions, host: &Rc<dyn Host>) -> Result<(), HostError> {
+    let callback = options.stream.ok_or_else(|| HostError("no stream reader".into()))?;
+    let chunk = match await_host(host.call(callback, None, Vec::new())).await? {
+        HostValue::Bytes(bytes) => Some(StreamChunk::Bytes(bytes)),
+        HostValue::Str(text) => Some(StreamChunk::Text(text)),
+        _ => None,
+    };
+    // the buffer of the tokenizer is written in place when the arena does not hold it
+    arena.set_source_text(source_index, CodeUnits::Bytes(Rc::from(&[][..])));
+    tokenizer.append(chunk);
+    arena.set_source_text(source_index, tokenizer.codes().clone());
+    Ok(())
 }
 
 async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Option<Rc<AstArena>>, host: Rc<dyn Host>) -> Result<ParseResult, HostError> {
@@ -179,12 +203,35 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
     arena.set_source_text(source_index as usize, tokenizer.codes().clone());
     let a = &*arena;
     let t = |x: u32| a.data_types.get(x);
+    // whitespace outside of parentheses, at the start of a statement or before ';', '{' and '}' is not significant: it
+    // is not allocated. the whitespace that follows a token is allocated when the next token is read
+    let mut whitespace: Option<(u32, u32)> = None;
     while tokenizer.typ != Some(EnumToken::EOF) {
         tokenizer.next();
-        let mut item = allocate_token(a, &mut tokenizer, source_index as i32);
+        // a stream: the token may continue in the next chunk, the chunk is read and the token is read again
+        if tokenizer.waiting {
+            read_chunk(&mut tokenizer, a, source_index as usize, &options, &host).await?;
+            continue;
+        }
         let mut item_type = tokenizer.typ.unwrap_or(0);
         stats.bytes_in = tokenizer.bytes_in.unwrap_or(0) as u64;
         stats.tokens_count += 1;
+        if parens_match == 0 {
+            if item_type == EnumToken::WhitespaceTokenType {
+                if !tokens.is_empty() {
+                    whitespace = Some((tokenizer.sta.unwrap_or(0) as u32, tokenizer.end.unwrap_or(0) as u32));
+                }
+                continue;
+            }
+            if let Some((start, end)) = whitespace.take() {
+                if !is_statement_end(item_type) {
+                    let ws = allocate_whitespace(a, source_index as u32, start, end);
+                    tokens.push(ws);
+                    statement.push(ws);
+                }
+            }
+        }
+        let mut item = allocate_token(a, &mut tokenizer, source_index as i32);
         if is_bad_token(item_type) {
             tokens.push(item);
             statement.push(item);
@@ -230,6 +277,10 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
                 tokens.push(item);
                 loop {
                     tokenizer.next();
+                    if tokenizer.waiting {
+                        read_chunk(&mut tokenizer, a, source_index as usize, &options, &host).await?;
+                        continue;
+                    }
                     item = allocate_token(a, &mut tokenizer, source_index as i32);
                     item_type = tokenizer.typ.unwrap_or(0);
                     tokens.push(item);
@@ -307,10 +358,15 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
         apply_visitors(&arena, ast, &visitor, &mut errors, &host, is_sync).await?;
     }
     drop_invalid_nodes(a, &invalid_nodes, &options);
-    if options.minify_ast == Some(true) && a.first_child.get(ast) != 0 {
-        for _ in 0..options.pass.unwrap_or(1) {
-            minify(a, ast, &minify_options, true, Some(&mut errors), false);
+    if options.minify_ast == Some(true) {
+        if a.first_child.get(ast) != 0 {
+            for _ in 0..options.pass.unwrap_or(1) {
+                minify(a, ast, &minify_options, true, Some(&mut errors), false);
+            }
         }
+    } else if matches!(options.merge_rules, Some(m) if m != MergeRulesEnum::None) && a.first_child.get(ast) != 0 {
+        // the ast is not minified: the adjacent rules are merged
+        merge_rules(a, ast, &minify_options);
     }
     stats.bytes_in += stats.imported_bytes_in;
     a.release_source_codes(source_index as usize);

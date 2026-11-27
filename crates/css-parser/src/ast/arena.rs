@@ -204,6 +204,8 @@ pub struct Arena {
     generation: Cell<u32>,
     /// the columns have been transferred
     transferred: Cell<bool>,
+    /// javascript has views of the columns (see [`Arena::column_raw`]): the buffers replaced by a growth are kept
+    viewed: Cell<bool>,
 }
 
 macro_rules! for_each_column {
@@ -257,6 +259,7 @@ impl Arena {
             free_list: Cell::new(0),
             generation: Cell::new(0),
             transferred: Cell::new(false),
+            viewed: Cell::new(false),
         };
         arena.data_types.set(1, EnumToken::StyleSheetNodeType);
         arena
@@ -291,6 +294,7 @@ impl Arena {
 
     /// pointer and length (in elements) of a column, by index of `arenaColumns`. the column views of javascript
     pub fn column_raw(&self, index: u32) -> (*const u8, usize) {
+        self.viewed.set(true);
         fn raw<T: Copy + Default>(c: &Column<T>) -> (*const u8, usize) {
             (c.as_ptr() as *const u8, c.len())
         }
@@ -592,6 +596,12 @@ impl Arena {
 
     pub fn get_last_id(&self) -> u32 {
         self.current.get()
+    }
+
+    /// approximate number of bytes held by the arena: the columns (62 bytes per node of the capacity) and the string
+    /// table
+    pub fn memory_size(&self) -> usize {
+        self.get_capacity() * 62 + self.strings().memory_size()
     }
 
     pub fn get_string_count(&self) -> u32 {
@@ -1371,7 +1381,7 @@ impl Arena {
         if new_size <= self.data_types.len() {
             return;
         }
-        for_each_column!(self, resize, new_size);
+        for_each_column!(self, resize, new_size, self.viewed.get());
         self.generation.set(self.generation.get() + 1);
     }
 

@@ -296,6 +296,51 @@ use TokenMap::*;
 /// value of a number: the longest prefix of the range that is a number, like `parseFloat()`. the prefix is copied to a
 /// stack buffer and parsed by the correctly rounded rust parser (same result as `parseFloat()`)
 pub fn parse_number(codes: &CodeUnits, start: usize, end: usize) -> f64 {
+    parse_short_number(codes, start, end).unwrap_or_else(|| parse_long_number(codes, start, end))
+}
+
+/// powers of ten represented exactly by a f64
+const POWERS_OF_TEN: [f64; 16] = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
+
+/// a number of 15 digits or less, without exponent: the digits are an integer represented exactly by a f64, divided by
+/// a power of ten represented exactly. the division is correctly rounded: the result is the result of `parseFloat`.
+/// `None` for the other numbers
+fn parse_short_number(codes: &CodeUnits, start: usize, end: usize) -> Option<f64> {
+    let mut i = start;
+    let mut code = codes.at(i);
+    let negative = code == 0x2d;
+    if negative || code == 0x2b {
+        i += 1;
+        code = codes.at(i);
+    }
+    let mut mantissa: u64 = 0;
+    let mut digits = 0usize;
+    let mut decimals = 0usize;
+    let mut dot = false;
+    while i < end {
+        if (0x30..=0x39).contains(&code) {
+            mantissa = mantissa * 10 + (code - 0x30) as u64;
+            digits += 1;
+            if dot {
+                decimals += 1;
+            }
+        } else if code == 0x2e && !dot {
+            dot = true;
+        } else {
+            break;
+        }
+        i += 1;
+        code = codes.at(i);
+    }
+    if digits == 0 || digits > 15 || (i < end && (code == 0x65 || code == 0x45)) {
+        return None;
+    }
+    let value = mantissa as f64 / POWERS_OF_TEN[decimals];
+    Some(if negative { -value } else { value })
+}
+
+/// see [`parse_number`]: the numbers that are not read by [`parse_short_number`]
+fn parse_long_number(codes: &CodeUnits, start: usize, end: usize) -> f64 {
     let mut buffer = [0u8; 128];
     let mut heap: Vec<u8> = Vec::new();
     let mut len = 0usize;
@@ -436,6 +481,60 @@ pub fn create_parse_info(input: Option<&CssInput>, source: Rc<SourceFile>) -> Pa
     parse_info
 }
 
+/// a chunk of a stream
+pub enum StreamChunk {
+    Bytes(Rc<[u8]>),
+    Text(Rc<str>),
+}
+
+/// decode the longest prefix of complete utf-8 characters: the invalid sequences are replaced with U+FFFD, like
+/// `TextDecoder`. returns the length of the decoded prefix: the bytes that follow start a character that is not
+/// complete
+fn decode_utf8_prefix(bytes: &[u8], out: &mut String) -> usize {
+    let mut i = 0;
+    while i < bytes.len() {
+        match std::str::from_utf8(&bytes[i..]) {
+            Ok(text) => {
+                out.push_str(text);
+                return bytes.len();
+            }
+            Err(error) => {
+                let valid = error.valid_up_to();
+                // SAFETY: the prefix is valid utf-8
+                out.push_str(unsafe { std::str::from_utf8_unchecked(&bytes[i..i + valid]) });
+                match error.error_len() {
+                    // a character that continues in the next chunk
+                    None => return i + valid,
+                    Some(length) => {
+                        out.push('\u{fffd}');
+                        i += valid + length;
+                    }
+                }
+            }
+        }
+    }
+    i
+}
+
+/// a buffer of at least `required` units that starts with `units`: the capacity doubles
+fn grow<T: Copy>(units: &[T], required: usize, zero: T) -> Rc<[T]> {
+    let mut capacity = units.len().max(1 << 16);
+    while capacity < required {
+        capacity *= 2;
+    }
+    let mut buffer = Vec::with_capacity(capacity);
+    buffer.extend_from_slice(units);
+    buffer.resize(capacity, zero);
+    Rc::from(buffer)
+}
+
+/// write the utf-16 code units of a text at an offset
+fn write_utf16(buffer: &mut [u16], offset: usize, text: &str) {
+    for (i, unit) in text.encode_utf16().enumerate() {
+        buffer[offset + i] = unit;
+    }
+}
+
 /// tokenizer
 pub struct Tokenizer {
     pub typ: Option<u8>,
@@ -455,7 +554,26 @@ pub struct Tokenizer {
     state: Option<u8>,
     pub parse_info: ParseInfo,
     decoded: Vec<u16>,
+    /// the input is a stream that is not read to its end, see [`Tokenizer::next`] and [`Tokenizer::append`]
+    stream: Option<StreamState>,
+    /// the last call of [`Tokenizer::next`] reached the end of the code units read from the stream: the token may
+    /// continue in the next chunk. no token is returned, a chunk must be appended before `next()` is called again
+    pub waiting: bool,
+    /// the size of the css of a stream, in bytes, when it is known, see [`Tokenizer::streaming`]
+    expected_length: usize,
 }
+
+/// the state of a stream read by the tokenizer
+struct StreamState {
+    /// the bytes of a character split between two chunks
+    pending: Vec<u8>,
+    /// no chunk has been decoded yet: a leading byte order mark is removed
+    first: bool,
+}
+
+/// number of code units the tokenizer may read after the end of a token (escape sequences, unicode ranges, `<!--`,
+/// ...): a token read from a stream is complete when the stream has more code units after it
+const STREAM_LOOKAHEAD: usize = 32;
 
 impl Tokenizer {
     pub fn new(parse_info: ParseInfo) -> Self {
@@ -477,7 +595,127 @@ impl Tokenizer {
             state: None,
             parse_info,
             decoded: Vec::new(),
+            stream: None,
+            waiting: false,
+            expected_length: 0,
         }
+    }
+
+    /// tokenizer of a stream: the chunks are appended with [`Tokenizer::append`] when the tokenizer is waiting.
+    /// `size`: the size of the css in bytes when it is known, 0 otherwise. the code units are allocated once: the size
+    /// in bytes is not less than the number of utf-16 code units
+    pub fn streaming(parse_info: ParseInfo, size: usize) -> Self {
+        let mut tokenizer = Self::new(parse_info);
+        tokenizer.parse_info.codes = CodeUnits::Bytes(if size > 0 { Rc::from(vec![0u8; size]) } else { Rc::from(&[][..]) });
+        tokenizer.parse_info.length = 0;
+        tokenizer.stream = Some(StreamState { pending: Vec::new(), first: true });
+        tokenizer.expected_length = size;
+        tokenizer
+    }
+
+    /// the size of the css of a stream, in bytes, when it is known. 0: not known, or not a stream
+    pub fn expected_length(&self) -> usize {
+        self.expected_length
+    }
+
+    /// true while the input is a stream that is not read to its end
+    pub fn is_streaming(&self) -> bool {
+        self.stream.is_some()
+    }
+
+    /// append a chunk of the stream: utf-8 bytes or text. `None` ends the stream. the code units stay bytes while the
+    /// css is ascii, they are utf-16 code units otherwise. the buffer of the code units doubles when it is full: the
+    /// code units read so far are not copied for each chunk. the buffer is written in place when the tokenizer holds
+    /// the only reference to it: the caller drops its other references first (the source text of the arena)
+    pub fn append(&mut self, chunk: Option<StreamChunk>) {
+        self.waiting = false;
+        let Some(state) = self.stream.as_mut() else {
+            return;
+        };
+        let mut text = String::new();
+        match chunk {
+            Some(StreamChunk::Text(t)) => text.push_str(&t),
+            Some(StreamChunk::Bytes(bytes)) => {
+                state.pending.extend_from_slice(&bytes);
+                let pending = std::mem::take(&mut state.pending);
+                let rest = decode_utf8_prefix(&pending, &mut text);
+                state.pending = pending[rest..].to_vec();
+                // TextDecoder removes the byte order mark
+                if state.first && !text.is_empty() {
+                    if let Some(stripped) = text.strip_prefix('\u{feff}') {
+                        text = stripped.to_string();
+                    }
+                }
+                if !text.is_empty() {
+                    state.first = false;
+                }
+            }
+            None => {
+                // a character that is not complete at the end of the stream
+                if !state.pending.is_empty() {
+                    text.push('\u{fffd}');
+                }
+                self.stream = None;
+            }
+        }
+        if !text.is_empty() {
+            self.append_text(&text);
+        }
+        if self.stream.is_none() {
+            self.finish_stream();
+        }
+    }
+
+    /// append the code units of a text to the code units of the stream
+    fn append_text(&mut self, text: &str) {
+        // the size of the stream when it is known: the buffer of utf-16 code units is allocated once
+        let expected = self.expected_length;
+        let pi = &mut self.parse_info;
+        let length = pi.length;
+        let ascii = text.is_ascii() && matches!(pi.codes, CodeUnits::Bytes(_));
+        let required = length + if ascii { text.len() } else { text.encode_utf16().count() };
+        let codes = std::mem::replace(&mut pi.codes, CodeUnits::Bytes(Rc::from(&[][..])));
+        pi.codes = match codes {
+            CodeUnits::Bytes(mut bytes) if ascii => {
+                if required > bytes.len() || Rc::get_mut(&mut bytes).is_none() {
+                    bytes = grow(&bytes[..length], required, 0u8);
+                }
+                Rc::get_mut(&mut bytes).expect("unique buffer")[length..required].copy_from_slice(text.as_bytes());
+                CodeUnits::Bytes(bytes)
+            }
+            CodeUnits::Bytes(bytes) => {
+                // the css is not ascii: the code units are utf-16 code units from now on
+                let widened: Vec<u16> = bytes[..length].iter().map(|&b| b as u16).collect();
+                let mut units = grow(&widened, required.max(expected), 0u16);
+                write_utf16(Rc::get_mut(&mut units).expect("unique buffer"), length, text);
+                CodeUnits::Utf16(units)
+            }
+            CodeUnits::Utf16(mut units) => {
+                if required > units.len() || Rc::get_mut(&mut units).is_none() {
+                    units = grow(&units[..length], required, 0u16);
+                }
+                write_utf16(Rc::get_mut(&mut units).expect("unique buffer"), length, text);
+                CodeUnits::Utf16(units)
+            }
+        };
+        pi.length = required;
+    }
+
+    /// the end of the stream: the code units are trimmed to their length, the text of the source file is set
+    fn finish_stream(&mut self) {
+        let pi = &mut self.parse_info;
+        let length = pi.length;
+        let (codes, text): (CodeUnits, Rc<str>) = match &pi.codes {
+            CodeUnits::Bytes(b) => {
+                let bytes: Rc<[u8]> = Rc::from(&b[..length]);
+                // ascii: the bytes are the text
+                let text: Rc<str> = Rc::from(std::str::from_utf8(&bytes).expect("ascii"));
+                (CodeUnits::Bytes(bytes), text)
+            }
+            CodeUnits::Utf16(u) => (CodeUnits::Utf16(Rc::from(&u[..length])), Rc::from(String::from_utf16_lossy(&u[..length]))),
+        };
+        pi.codes = codes;
+        *pi.source.content.borrow_mut() = text;
     }
 
     /// tokenizer of a css input with a new anonymous source
@@ -1213,7 +1451,33 @@ impl Tokenizer {
 
     /// read the next token
     #[allow(clippy::should_implement_trait)]
+    /// read the next token. when the input is a stream that is not read to its end, a token that ends near the end of
+    /// the code units read so far may continue in the next chunk (an identifier, a number, a string, a comment, ...):
+    /// the token is not returned, [`Tokenizer::waiting`] is true and a chunk must be appended before the next call
     pub fn next(&mut self) -> &mut Self {
+        if self.stream.is_none() {
+            return self.next_token();
+        }
+        let position = self.parse_info.position;
+        let current_position = self.parse_info.current_position;
+        let state = self.state;
+        let line_count = self.parse_info.source.line_starts.borrow().line_starts.len();
+        self.next_token();
+        // the tokenizer reads at most a few code units after the end of a token: the token is complete when the
+        // stream has more code units after it
+        if self.parse_info.current_position + STREAM_LOOKAHEAD > self.parse_info.length {
+            self.parse_info.position = position;
+            self.parse_info.current_position = current_position;
+            self.state = state;
+            self.parse_info.source.line_starts.borrow_mut().line_starts.truncate(line_count);
+            self.typ = None;
+            self.waiting = true;
+        }
+        self
+    }
+
+    /// read the next token from the code units of the input
+    fn next_token(&mut self) -> &mut Self {
         let end_position = self.parse_info.length.saturating_sub(1);
         loop {
             let mut char_code = self.parse_info.cur();
@@ -1572,3 +1836,42 @@ fn find_item(typ: u8, parse_info: &ParseInfo, start: usize, end: usize) -> i64 {
 
 #[allow(dead_code)]
 static _UNUSED: OnceLock<()> = OnceLock::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// the numbers read by `parse_short_number` have the value read by `parse_long_number`
+    #[test]
+    fn short_numbers() {
+        let mut inputs: Vec<String> = [
+            "0", "-0", "+0", "1", "-1", "+1", "1.", "-1.", ".5", "-.5", "+.5", "0.1", "0.2", "0.3", "1.5", "12.345",
+            "123456789012345", "12345678901234.5", "0.000000000000001", "9.99999999999999", "33.333333333333",
+            "1e3", "1.e3", "1.5e-3", "1em", "10px", "1.2.3", ".", "-", "+-1", "007", "0.30000000000000004",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        // pseudo random numbers
+        let mut seed: u64 = 0x2545f4914f6cdd1d;
+        for _ in 0..20000 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            let digits = (seed % 15 + 1) as usize;
+            let mantissa = format!("{:015}", seed % 1_000_000_000_000_000);
+            let mantissa = &mantissa[15 - digits..];
+            let dot = (seed >> 20) as usize % (digits + 1);
+            let sign = ["", "-", "+"][(seed >> 40) as usize % 3];
+            inputs.push(format!("{}{}.{}", sign, &mantissa[..dot], &mantissa[dot..]));
+            inputs.push(format!("{}{}", sign, mantissa));
+        }
+        for input in inputs {
+            let codes = CodeUnits::Bytes(Rc::from(input.as_bytes()));
+            let long = parse_long_number(&codes, 0, input.len());
+            if let Some(short) = parse_short_number(&codes, 0, input.len()) {
+                assert!(short.to_bits() == long.to_bits(), "{}: {} != {}", input, short, long);
+            }
+        }
+    }
+}

@@ -8,7 +8,7 @@ use super::tokens::{number, percentage, slash};
 use super::utils::components::get_color_components;
 use super::utils::values::{at, js_max, js_min, opt};
 use crate::ast::arena::AstArena;
-use crate::ast::types::ColorType;
+use crate::ast::types::{ColorType, EnumToken};
 
 macro_rules! to_token {
     ($name:ident, $values:ident) => {
@@ -57,14 +57,19 @@ fn hsl_token(arena: &AstArena, mut values: Vec<f64>) -> u32 {
     arena.create_color("hsl", ColorType::HSL, Some(&chi))
 }
 
+/// value of a red, green or blue component of an `rgb()` color, from 0 to 255: `100%` is 255
+fn rgb_channel(arena: &AstArena, token: u32) -> f64 {
+    (if arena.data_types.get(token) == EnumToken::PercentageTokenType { 255.0 } else { 1.0 }) * get_number(arena, token)
+}
+
 pub fn rgb2hslvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
     let chi = get_color_components(arena, token)?;
     if chi.len() < 3 {
         return None;
     }
-    let r = get_number(arena, chi[0]);
-    let g = get_number(arena, chi[1]);
-    let b = get_number(arena, chi[2]);
+    let r = rgb_channel(arena, chi[0]);
+    let g = rgb_channel(arena, chi[1]);
+    let b = rgb_channel(arena, chi[2]);
     let a = if chi.len() == 4 { Some(get_number(arena, chi[3])) } else { None };
     let a = a.filter(|&a| a != 1.0);
     Some(rgbvalues2hslvalues(r, g, b, a))

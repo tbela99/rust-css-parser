@@ -15,7 +15,7 @@ the WASM builds (`npm run test:node`, `npm run test:web`). The previous reimplem
 2. **Strings**: sources are kept once as `CodeUnits` (`Rc<[u8]>` when ascii, `Rc<[u16]>` otherwise) shared by the
    tokenizer, the sources and the string table. Interned strings are ranges; `Rc<str>` is created only when read
    (`resolve_string`) and cached. Use `with_string`, `string_equals*`, `string_starts_with` to avoid creating strings.
-3. **Enums**: `src/ast/types.rs` is generated from the compiled TS enums (`scripts/gen/enums.mjs`): numeric constants
+3. **Enums**: `src/ast/types.rs` is generated from the compiled TS enums (`scripts/gen/enums.js`): numeric constants
    in modules named like the TS enums (aliases included), plus `name()` / `value()` lookups.
 4. **Async**: the TS pipeline awaits visitors, loaders and hash functions. The Rust ports are `async fn`s driven by a
    host executor: when Rust awaits a host promise it suspends and returns the promise id; JS awaits it and resumes the
@@ -165,8 +165,8 @@ Legend: `[x]` ported, `[~]` partial, `[ ]` todo.
 - Walkers (`walk()`, `walkValues()`) are lazy: one rust call per step, the filters are javascript callbacks.
 - Transferred arenas (`toTransferableArenaObject`/`fromTransferableArenaObjects`) use javascript column buffers,
   synchronized with rust around the calls that receive them, until the arena grows.
-- The JavaScript enums (`bindings/ast/types.js`, ...) are generated from the TS build by `scripts/gen-enums.mjs`
-  (data only). The Rust enums (`src/ast/types.rs`) by `scripts/gen/enums.mjs`.
+- The JavaScript enums (`bindings/ast/types.js`, ...) are generated from the TS build by `scripts/gen-enums.js`
+  (data only). The Rust enums (`src/ast/types.rs`) by `scripts/gen/enums.js`.
 - `npm run test:napi` / `npm run test:wasm` (`npm run test:node`: both): the specs against each package. `npm run test:web`: WASM in chromium, firefox, webkit.
 - Design and usage: [files/bindings.md](files/bindings.md).
 
@@ -174,22 +174,22 @@ Legend: `[x]` ported, `[~]` partial, `[ ]` todo.
 
 - `files/`: the guides, adapted from `files/` of the TS repository (same JavaScript API), plus `bindings.md` and
   `rust.md`. The Rust examples of `rust.md` are the test `tests/docs_rust_api.rs`.
-- `npm run doc` (`scripts/docs.mjs`): the guides converted to html in `docs/`, and the Rust API reference
+- `npm run doc` (`scripts/docs.js`): the guides converted to html in `docs/`, and the Rust API reference
   (`cargo doc`) in `docs/api/`.
 
 ## Parity checks
 
 - `sh tests/tokenizer_parity.sh ../css`: token stream (type, span, value, number) of every test css file.
-- `../css/node_modules/.bin/tsx scripts/parity/syntaxes.mjs ../css/src` vs `cargo run --release --bin syntaxes`:
+- `../css/node_modules/.bin/tsx scripts/parity/syntaxes.js ../css/src` vs `cargo run --release --bin syntaxes`:
   parse + render of every syntax of `validation.json` (1936 syntaxes, identical).
-- `node scripts/parity/ast.mjs ../css/dist <file> [validation]` vs `./target/release/ast <file> [validation]`: plain
+- `node scripts/parity/ast.js ../css/dist <file> [validation]` vs `./target/release/ast <file> [validation]`: plain
   object of the ast + errors (compare without `srcId`: the dist consumes source id 0 while loading). All test css
   files identical except those hitting a PORT-STUB, and `test/css-modules/styles.css` in validation mode where the
   TS throws (`parseTokens` reads `options.source.file` without a source, from `matchProperty`).
-- `node scripts/parity/render.mjs ../css/dist <file> [beautify|minify]` vs `./target/release/render <file> [mode]`:
+- `node scripts/parity/render.js ../css/dist <file> [beautify|minify]` vs `./target/release/render <file> [mode]`:
   parse (no ast minification) + render. All test css files identical in the 3 modes. Mode `astmin`: the ast is
   minified with the default features (shorthand, calc, transform): identical.
-- `node scripts/parity/transform-map.mjs ../css/dist <file>` vs `./target/release/render <file> map`: beautified code +
+- `node scripts/parity/transform-map.js ../css/dist <file>` vs `./target/release/render <file> map`: beautified code +
   source map. Identical except the 4 files with an input source map file (`*.map`): the TS loads it asynchronously
   with `load()` and does not wait for it before rendering; the parity script has no `load()`.
 - `cargo test --release --test memo`: identical declarations are validated once and rendered once.
@@ -211,7 +211,7 @@ exposed to javascript are unchanged.
 - Rendered sizes (minifier `diff`): `NodeRenderer::size()` computes the size of a node from the sizes of its parts
   (`node_size()`, the declarations measured from their memoized rendered values, the layout of `render_ast_node()`)
   instead of rendering it. Same in the typescript (`nodeSize()`). `CSS_PARSER_CHECK_SIZE=1` checks every computed size
-  against a render (used with `scripts/parity/outputs.mjs`).
+  against a render (used with `scripts/parity/outputs.js`).
 - Split selectors: `RawSelector` keeps the vendor prefixes of the selector (computed once, cleared by a mutable
   access); the prefixes of a selector string are cached by string id. `split_rule()` splits an ascii selector on its
   bytes (no utf-16 conversion).

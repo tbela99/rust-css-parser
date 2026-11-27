@@ -3,6 +3,22 @@
 The changes of the port. The changes of the parser itself are in the changelog of
 [@tbela99/css-parser](https://github.com/tbela99/css-parser/blob/master/CHANGELOG.md): the port follows its versions.
 
+# v2.3.2
+
+## Performance
+
+- [x] tokenizer: the numbers of 15 digits or less without exponent are read without the float parser (the digits divided by a power of ten: the same correctly rounded value)
+- [x] `toFixed()`: the numbers that are not close to a tie are rounded without the exact decimal expansion (rendering of the angles)
+- [x] input: the utf-16 code units of a non ascii input are written to a buffer allocated once
+- [x] `ReadableStream` input: the chunks are read by rust while the css is parsed (a `stream` callback), instead of being read to the end by javascript first. the code units are appended to a buffer that doubles when it is full
+- [x] `ReadableStream` input: the size of the stream when it is known (`streamSize`, recorded by the loader for a file or an uncompressed response, 0 when unknown): the code units and the arena are allocated once
+- [x] arena growth: the columns are reallocated with zeroed memory (the free slots are not written: their pages are not resident), the previous buffers are freed when javascript has no view of the columns (they were kept until the arena was dropped)
+
+# v2.3.1
+
+- [x] fix deno install
+- [x] document native and wasm builds
+
 # v2.3.0
 
 ## Bugs

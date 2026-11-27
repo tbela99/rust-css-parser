@@ -5,6 +5,7 @@
 //! port keeps a single struct passed by reference. Host callbacks (loaders, visitors, scoped name generators) are
 //! defined in [`crate::host`].
 
+use crate::ast::types::MergeRulesEnum;
 use crate::parser::source::SourceFile;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -102,6 +103,13 @@ pub struct ParserOptions {
     pub keep_mixins: Option<bool>,
     pub remove_empty: Option<bool>,
     pub remove_prefix: Option<bool>,
+    /// optimize the selectors (reduce, factor with `:is()`): `None` is `true`
+    pub optimize_selectors: Option<bool>,
+    /// `mergeRules?: boolean | MergeRulesEnum`: a `MergeRulesEnum` value (`true` is `All`, `false` is `None`). `None`
+    /// (unset): `All` when the ast is minified, no merge otherwise
+    pub merge_rules: Option<u32>,
+    /// the inexpensive minifications only: sets the default value of the fast mode settings (see `with_defaults()`)
+    pub fast_mode: Option<bool>,
     pub pass: Option<u32>,
     // ParserSourceMapOptions
     pub sourcemap: Option<SourceMapOption>,
@@ -138,6 +146,12 @@ pub struct ParserOptions {
     pub visitor: Option<Rc<crate::host::HostDef>>,
     /// host callback id of `load`
     pub load: Option<u32>,
+    /// host callback id of the reader of a stream input: it returns the next chunk (bytes or text), `null` at the end
+    /// of the stream. the bindings set it when the input is a `ReadableStream`
+    pub stream: Option<u32>,
+    /// the size of the css of the stream, in bytes, when it is known (a file, a response with a content length): the
+    /// code units and the arena are allocated once. 0: not known
+    pub stream_size: Option<usize>,
     // RenderOptions
     pub minify_values: Option<bool>,
     pub beautify: Option<bool>,
@@ -216,6 +230,16 @@ impl ParserOptions {
                 "keepMixins" => o.keep_mixins = b(),
                 "removeEmpty" => o.remove_empty = b(),
                 "removePrefix" => o.remove_prefix = b(),
+                "optimizeSelectors" => o.optimize_selectors = b(),
+                "mergeRules" => {
+                    // `boolean | MergeRulesEnum`: `true` is `All`, `false` is `None`
+                    o.merge_rules = Some(match n() {
+                        Some(n) => n as u32,
+                        None if truthy(&value) => MergeRulesEnum::All,
+                        None => MergeRulesEnum::None,
+                    })
+                }
+                "fastMode" => o.fast_mode = b(),
                 "pass" => o.pass = n().map(|n| n as u32),
                 "sourcemap" => {
                     o.sourcemap = Some(match &value {
@@ -275,6 +299,12 @@ impl ParserOptions {
                         o.load = Some(*id)
                     }
                 }
+                "stream" => {
+                    if let HostDef::Fn { id, .. } = &value {
+                        o.stream = Some(*id)
+                    }
+                }
+                "streamSize" => o.stream_size = n().filter(|n| *n > 0.0).map(|n| n as usize),
                 "minifyValues" => o.minify_values = b(),
                 "beautify" => o.beautify = b(),
                 "preserveLicense" => o.preserve_license = b(),

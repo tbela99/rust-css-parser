@@ -91,6 +91,8 @@ flowchart TB
 - **Callbacks**: the visitors, `load()`, `generateScopedName` and the walker filters are JavaScript functions called
   by Rust. The promises they return are awaited by JavaScript: `parse()` and `transform()` drive the Rust task until
   it completes.
+- **Streams**: a `ReadableStream` input is not read to its end by JavaScript: Rust calls a reader of the stream
+  when the tokenizer reaches the end of the CSS received so far, and parses the next chunk when it arrives.
 - **Arenas**: an arena created by Rust and returned twice is the same JavaScript object. The Rust arena is released when
   the JavaScript object is garbage collected. The N-API addon reports the memory of the arenas to V8
   (`napi_adjust_external_memory`): V8 collects the results that are no longer referenced according to their size.

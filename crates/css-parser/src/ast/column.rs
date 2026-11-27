@@ -60,20 +60,24 @@ impl<T: Copy + Default> Column<T> {
         self.vec().is_empty()
     }
 
-    /// grow the column, the new slots are zeroed
-    pub fn resize(&self, size: usize) {
+    /// grow the column, the new slots are zeroed. `retire`: javascript may hold views of the column, the previous
+    /// buffer is kept until the column is dropped. otherwise it is freed
+    pub fn resize(&self, size: usize, retire: bool) {
         let vec = self.vec_mut();
         if size <= vec.capacity() {
             vec.resize(size, T::default());
             return;
         }
-        // a new buffer: the previous one is retired, not freed (javascript views may still point to it)
-        let mut grown = Vec::with_capacity(size);
-        grown.extend_from_slice(vec);
-        grown.resize(size, T::default());
+        // a zeroed allocation (the default values are zeros): the pages that are not written are not resident. the
+        // values are copied, the free slots are not written
+        let mut grown = vec![T::default(); size];
+        grown[..vec.len()].copy_from_slice(vec);
         let previous = std::mem::replace(vec, grown);
-        // SAFETY: see the module documentation
-        unsafe { (*self.retired.get()).push(previous) };
+        if retire {
+            // the javascript views may still point to the previous buffer
+            // SAFETY: see the module documentation
+            unsafe { (*self.retired.get()).push(previous) };
+        }
     }
 
     /// replace the data

@@ -102,6 +102,13 @@ console.debug(result.code);
 
 The parse() and transform() functions accept a string or readable stream as first argument.
 
+The stream is parsed while it is read: a chunk is read when the tokenizer reaches the end of the CSS received so far.
+A token that may continue in the next chunk (an identifier, a number, a string, a comment, ...) is read again once the
+next chunk is received. The chunks can be bytes (UTF-8, a character can be split between two chunks) or text.
+When the size of the stream is known (a file loaded with `{file, asStream: true}`, a response with a
+`Content-Length` and no `Content-Encoding`), the buffers of the parser are allocated once, like for an `ArrayBuffer`.
+Otherwise they grow as the stream is read.
+
 ```ts
 import {parse} from '@tbela99/rust-css-parser-napi';
 import {Readable} from "node:stream";
@@ -475,11 +482,11 @@ Performance vs execution speed comparison
 | File:  tailwind.css   | Speed optimization | Minification optimization |
 | --------------------- | ------------------ | ------------------------- |
 | Size: 2,380,419 bytes | 1,888,460 bytes    | 1,624,148 bytes           |
-| Time (N-API)          | 43.87 ms           | 88.97 ms                  |
-| Time (WASM)           | 54.50 ms           | 103.53 ms                 |
+| Time (N-API)          | 38.18 ms           | 81.18 ms                  |
+| Time (WASM)           | 47.31 ms           | 92.67 ms                  |
 | Size reduction        | -20.7%             | -31.8%                    |
 
-`transformSync()`, median of 15 runs, node 27, Apple silicon. The N-API addon and the WebAssembly module produce the
+`transformSync()`, median of 25 runs, node 27, Apple silicon. The N-API addon and the WebAssembly module produce the
 same output.
 
 

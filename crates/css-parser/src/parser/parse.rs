@@ -98,7 +98,8 @@ pub fn create_comment_node(arena: &AstArena, token: u32) -> u32 {
 
 /// initial arena capacity: one node for every 4 bytes of css
 pub fn arena_capacity(tokenizer: &Tokenizer) -> usize {
-    let length = tokenizer.stream_length();
+    // a stream: the size of the css when it is known, the arena is allocated as for an ArrayBuffer
+    let length = tokenizer.stream_length().max(tokenizer.expected_length());
     if length == 0 {
         4096
     } else {

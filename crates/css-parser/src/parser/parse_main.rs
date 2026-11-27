@@ -20,7 +20,8 @@ use crate::parser::parse::{
     recycle_statement_tokens, render_tokens, ParseResultStats,
 };
 use crate::parser::source::SourceFile;
-use crate::parser::tokenize::{create_parse_info, Tokenizer};
+use crate::parser::tokenize::{create_parse_info, StreamChunk, Tokenizer};
+use crate::parser::utils::codes::CodeUnits;
 use crate::parser::utils::hash::{hash, sync_hash, HASH_ALGORITHMS};
 use crate::parser::utils::text::{camelize, equals_ignore_case};
 use crate::plain::{Plain, PlainObject};
@@ -144,6 +145,23 @@ fn module_is_set(module: &Option<ModuleOption>) -> bool {
     }
 }
 
+/// read the next chunk of a stream (the `stream` callback of the options) and append it to the code units of the
+/// tokenizer. the strings of the tokens are ranges of the code units read so far: the source text of the arena is set
+/// again
+async fn read_chunk(tokenizer: &mut Tokenizer, arena: &AstArena, source_index: usize, options: &ParserOptions, host: &Rc<dyn Host>) -> Result<(), HostError> {
+    let callback = options.stream.ok_or_else(|| HostError("no stream reader".into()))?;
+    let chunk = match await_host(host.call(callback, None, Vec::new())).await? {
+        HostValue::Bytes(bytes) => Some(StreamChunk::Bytes(bytes)),
+        HostValue::Str(text) => Some(StreamChunk::Text(text)),
+        _ => None,
+    };
+    // the buffer of the tokenizer is written in place when the arena does not hold it
+    arena.set_source_text(source_index, CodeUnits::Bytes(Rc::from(&[][..])));
+    tokenizer.append(chunk);
+    arena.set_source_text(source_index, tokenizer.codes().clone());
+    Ok(())
+}
+
 async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Option<Rc<AstArena>>, host: Rc<dyn Host>) -> Result<ParseResult, HostError> {
     let mut options = with_defaults(options);
     // the restrictions of the typescript sync api (bindings only)
@@ -190,6 +208,11 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
     let mut whitespace: Option<(u32, u32)> = None;
     while tokenizer.typ != Some(EnumToken::EOF) {
         tokenizer.next();
+        // a stream: the token may continue in the next chunk, the chunk is read and the token is read again
+        if tokenizer.waiting {
+            read_chunk(&mut tokenizer, a, source_index as usize, &options, &host).await?;
+            continue;
+        }
         let mut item_type = tokenizer.typ.unwrap_or(0);
         stats.bytes_in = tokenizer.bytes_in.unwrap_or(0) as u64;
         stats.tokens_count += 1;
@@ -254,6 +277,10 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
                 tokens.push(item);
                 loop {
                     tokenizer.next();
+                    if tokenizer.waiting {
+                        read_chunk(&mut tokenizer, a, source_index as usize, &options, &host).await?;
+                        continue;
+                    }
                     item = allocate_token(a, &mut tokenizer, source_index as i32);
                     item_type = tokenizer.typ.unwrap_or(0);
                     tokens.push(item);

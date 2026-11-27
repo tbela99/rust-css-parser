@@ -7,6 +7,7 @@
 
 /extensions/css-parser-napi/dist/** linguist-vendored
 /extensions/css-parser-wasm/dist/** linguist-vendored
+/test/** linguist-vendored
 
 /web-test-runner.config.js export-ignore
 /PORTING.md export-ignore

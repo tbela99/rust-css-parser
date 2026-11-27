@@ -162,7 +162,12 @@ fn prepare(input: &Val, options_val: &Val) -> Result<PreparedParse> {
     let source = SourceFile::new(content, Vec::new(), Some(Rc::from(src.as_str())));
     sources.borrow_mut().insert(source.id, source.clone());
     options.source = Some(source.clone());
-    let tokenizer = Tokenizer::new(create_parse_info(Some(&css_input(input)), source));
+    // a stream: the chunks are read by the `stream` callback while the css is parsed
+    let tokenizer = if options.stream.is_some() {
+        Tokenizer::streaming(create_parse_info(None, source), options.stream_size.unwrap_or(0))
+    } else {
+        Tokenizer::new(create_parse_info(Some(&css_input(input)), source))
+    };
     Ok(PreparedParse { tokenizer, options, arena })
 }
 

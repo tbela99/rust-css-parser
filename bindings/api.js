@@ -2,6 +2,7 @@
 // are completed like the typescript entry points, the work is done by rust.
 
 import { readAll, rt as defaultRuntime, runtimeOf } from "./core.js";
+import { getStreamSize } from "./runtime.js";
 import "./ast/arena.js";
 import { ModuleScopeEnumOptions } from "./ast/types.js";
 import { ResponseType } from "./enums-extra.js";
@@ -68,6 +69,39 @@ function splitArguments(args, stream) {
 }
 
 /**
+ * the arguments of an async parse: a stream is read by rust while the css is parsed, chunk by chunk. the `stream`
+ * option is the reader of the chunks: it returns the next chunk (bytes or text), `null` at the end of the stream
+ * @param input the css: a string, an ArrayBuffer, a view of an ArrayBuffer or a stream
+ * @param options
+ */
+function streamArguments(input, options) {
+    if (typeof ReadableStream === "undefined" || !(input instanceof ReadableStream)) {
+        return [input, options];
+    }
+
+    const reader = input.getReader();
+
+    return [
+        null,
+        {
+            ...options,
+            // the size of the css when it is known: rust allocates the code units and the arena once
+            streamSize: getStreamSize(input),
+            stream: async function stream() {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    reader.releaseLock();
+                    return null;
+                }
+
+                return value;
+            },
+        },
+    ];
+}
+
+/**
  * @param host `{ load, cwd(), runtime }`: the default loader, the current directory of the platform and the runtime of
  * the backend (the default runtime when it is not set)
  */
@@ -123,9 +157,9 @@ export function createApi(host) {
             return loadFile(file, options).then((stream) => parse(stream, { src: file, ...options }));
         }
 
-        const input = await readAll(stream);
-
-        return rt.run(rt.call("parse", input, { ...options, load: options.load ?? load, cwd: options.cwd ?? host.cwd() }));
+        return rt.run(
+            rt.call("parse", ...streamArguments(stream, { ...options, load: options.load ?? load, cwd: options.cwd ?? host.cwd() })),
+        );
     }
 
     async function transform(...args) {
@@ -142,9 +176,7 @@ export function createApi(host) {
         options.load ??= load;
         options.cwd ??= host.cwd();
 
-        const input = await readAll(stream);
-
-        return transformResult(await rt.run(rt.call("transform", input, options)));
+        return transformResult(await rt.run(rt.call("transform", ...streamArguments(stream, options))));
     }
 
     return { render, parse, parseSync, transform, transformSync };

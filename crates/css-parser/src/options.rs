@@ -146,6 +146,12 @@ pub struct ParserOptions {
     pub visitor: Option<Rc<crate::host::HostDef>>,
     /// host callback id of `load`
     pub load: Option<u32>,
+    /// host callback id of the reader of a stream input: it returns the next chunk (bytes or text), `null` at the end
+    /// of the stream. the bindings set it when the input is a `ReadableStream`
+    pub stream: Option<u32>,
+    /// the size of the css of the stream, in bytes, when it is known (a file, a response with a content length): the
+    /// code units and the arena are allocated once. 0: not known
+    pub stream_size: Option<usize>,
     // RenderOptions
     pub minify_values: Option<bool>,
     pub beautify: Option<bool>,
@@ -293,6 +299,12 @@ impl ParserOptions {
                         o.load = Some(*id)
                     }
                 }
+                "stream" => {
+                    if let HostDef::Fn { id, .. } = &value {
+                        o.stream = Some(*id)
+                    }
+                }
+                "streamSize" => o.stream_size = n().filter(|n| *n > 0.0).map(|n| n as usize),
                 "minifyValues" => o.minify_values = b(),
                 "beautify" => o.beautify = b(),
                 "preserveLicense" => o.preserve_license = b(),

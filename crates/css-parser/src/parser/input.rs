@@ -63,6 +63,28 @@ pub fn is_empty_input(input: &CssInput) -> bool {
     }
 }
 
+/// the utf-16 code units of a text. the ascii characters are copied as they are, the other characters are encoded: the
+/// buffer is allocated once, `encode_utf16().collect()` grows it many times
+fn utf16_units(text: &str) -> Rc<[u16]> {
+    let bytes = text.as_bytes();
+    let mut units: Vec<u16> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if byte < 0x80 {
+            units.push(byte as u16);
+            i += 1;
+            continue;
+        }
+        // a character starts at i: the bytes are valid utf-8
+        let c = text[i..].chars().next().expect("utf-8 character");
+        let mut buffer = [0u16; 2];
+        units.extend_from_slice(c.encode_utf16(&mut buffer));
+        i += c.len_utf8();
+    }
+    units.into()
+}
+
 /// convert the css input to code units. an ascii input is read from its bytes: the code units are the bytes. the other
 /// inputs are decoded (utf-8, without byte order mark) to utf-16 code units: the positions of the tokens are utf-16
 /// positions, like the positions in a javascript string
@@ -77,7 +99,7 @@ pub fn to_code_units(input: Option<&CssInput>) -> CssCodeUnits {
             if text.is_ascii() {
                 CssCodeUnits { codes: CodeUnits::Bytes(rc_str_to_bytes(text.clone())), text: text.clone() }
             } else {
-                CssCodeUnits { codes: CodeUnits::Utf16(text.encode_utf16().collect::<Vec<u16>>().into()), text: text.clone() }
+                CssCodeUnits { codes: CodeUnits::Utf16(utf16_units(&text)), text: text.clone() }
             }
         }
         Some(CssInput::Bytes(bytes)) => {
@@ -94,7 +116,7 @@ pub fn to_code_units(input: Option<&CssInput>) -> CssCodeUnits {
             if text.is_ascii() {
                 return CssCodeUnits { codes: CodeUnits::Bytes(rc_str_to_bytes(text.clone())), text };
             }
-            CssCodeUnits { codes: CodeUnits::Utf16(text.encode_utf16().collect::<Vec<u16>>().into()), text }
+            CssCodeUnits { codes: CodeUnits::Utf16(utf16_units(&text)), text }
         }
     }
 }

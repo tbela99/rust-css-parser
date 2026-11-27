@@ -754,8 +754,17 @@ fn arena_method(name: &str, args: &[Val]) -> Result<Val> {
             Val::Undefined
         }
         "getOp" => Val::Num(ar.get_op(id()) as f64),
+        "setOp2" => {
+            ar.set_op2(id(), id_arg(a, 1));
+            Val::Undefined
+        }
+        "getOp2" => Val::Num(ar.get_op2(id()) as f64),
         "copySpan" => {
             ar.copy_span(id(), id_arg(a, 1));
+            Val::Undefined
+        }
+        "setSpandStart" => {
+            ar.set_span_start(id(), arg(a, 1).u32());
             Val::Undefined
         }
         "setSpanEnd" => {

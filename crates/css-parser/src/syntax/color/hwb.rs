@@ -6,7 +6,7 @@ use super::tokens::{number, percentage, slash};
 use super::utils::components::get_color_components;
 use super::utils::values::{at, js_max, js_min, opt};
 use crate::ast::arena::AstArena;
-use crate::ast::types::ColorType;
+use crate::ast::types::{ColorType, EnumToken};
 
 macro_rules! to_token {
     ($name:ident, $values:ident) => {
@@ -17,7 +17,7 @@ macro_rules! to_token {
     };
 }
 
-to_token!(rgb2hwb_token, rgb2hwbvalues_opt);
+to_token!(rgb2hwb_token, rgb2hwbvalues);
 to_token!(hsl2hwb_token, hsl2hwbvalues);
 to_token!(cmyk2hwb_token, cmyk2hwbvalues);
 to_token!(oklab2hwb_token, oklab2hwbvalues);
@@ -39,19 +39,22 @@ fn to_hwb(values: &[f64]) -> Vec<f64> {
     srgb2hwb(at(values, 0), at(values, 1), at(values, 2), opt(values, 3))
 }
 
-/// typescript: `getColorComponents(...)!` (a `null` result throws)
-pub fn rgb2hwbvalues(arena: &AstArena, token: u32) -> Vec<f64> {
-    let values: Vec<f64> = get_color_components(arena, token)
-        .unwrap_or_default()
+/// `None` when the components cannot be computed: `var()`, ...
+pub fn rgb2hwbvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
+    let values: Vec<f64> = get_color_components(arena, token)?
         .iter()
         .enumerate()
-        .map(|(index, &t)| if index == 3 { get_number(arena, t) } else { get_number(arena, t) / 255.0 })
+        .map(|(index, &t)| {
+            if index == 3 {
+                get_number(arena, t)
+            } else {
+                // the components are from 0 to 255: 100% is 255
+                (if arena.data_types.get(t) == EnumToken::PercentageTokenType { 255.0 } else { 1.0 }) * get_number(arena, t)
+                    / 255.0
+            }
+        })
         .collect();
-    to_hwb(&values)
-}
-
-fn rgb2hwbvalues_opt(arena: &AstArena, token: u32) -> Option<Vec<f64>> {
-    Some(rgb2hwbvalues(arena, token))
+    Some(to_hwb(&values))
 }
 
 pub fn cmyk2hwbvalues(arena: &AstArena, token: u32) -> Option<Vec<f64>> {

@@ -3,6 +3,14 @@
 The changes of the port. The changes of the parser itself are in the changelog of
 [@tbela99/css-parser](https://github.com/tbela99/css-parser/blob/master/CHANGELOG.md): the port follows its versions.
 
+# v2.3.2
+
+## Performance
+
+- [x] tokenizer: the numbers of 15 digits or less without exponent are read without the float parser (the digits divided by a power of ten: the same correctly rounded value)
+- [x] `toFixed()`: the numbers that are not close to a tie are rounded without the exact decimal expansion (rendering of the angles)
+- [x] input: the utf-16 code units of a non ascii input are written to a buffer allocated once
+
 # v2.3.0
 
 ## Bugs

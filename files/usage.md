@@ -458,16 +458,16 @@ import {transformSync} from "@tbela99/rust-css-parser-napi";
 
 const css = `...`;
 
-// the ast is not minified, the adjacent rules that have the same declarations are merged
+// the ast is not minified, the rules are not merged
 const result = transformSync(css, {fastMode: true});
 
 console.debug(result.code);
 console.debug(result.stats);
 ```
 
-`fastMode: true` sets `minify: false` and `mergeRules: MergeRulesEnum.Identical`: the ast is not minified, the adjacent
-rules that have the same declarations are merged. An option given explicitly takes precedence: `{fastMode: true,
-minify: true}` minifies the ast.
+`fastMode: true` sets `minify: false` and `mergeRules: MergeRulesEnum.None`: the ast is not minified, the rules are not
+merged, the values are minified when they are rendered. An option given explicitly takes precedence: `{fastMode: true,
+minify: true}` minifies the ast without merging the rules.
 
 Performance vs execution speed comparison
 

@@ -82,6 +82,8 @@ export function createApi(host) {
     function parseSync(...args) {
         const [stream, options] = splitArguments(args, false);
 
+        options?.signal?.throwIfAborted();
+
         if (options != null) {
             validateSyncArguments(options);
         }
@@ -91,6 +93,8 @@ export function createApi(host) {
 
     function transformSync(...args) {
         const [stream, opts] = splitArguments(args, false);
+
+        opts?.signal?.throwIfAborted();
 
         if (opts != null) {
             validateSyncArguments(opts);
@@ -113,6 +117,8 @@ export function createApi(host) {
     async function parse(...args) {
         const [stream, options = {}, file] = splitArguments(args, true);
 
+        options.signal?.throwIfAborted();
+
         if (file != null) {
             return loadFile(file, options).then((stream) => parse(stream, { src: file, ...options }));
         }
@@ -124,6 +130,8 @@ export function createApi(host) {
 
     async function transform(...args) {
         const [stream, opts = {}, file] = splitArguments(args, true);
+
+        opts.signal?.throwIfAborted();
 
         if (file != null) {
             return loadFile(file, opts).then((stream) => transform(stream, { src: file, ...opts }));

@@ -1,0 +1,24 @@
+/test/** export-ignore linguist-vendored
+/docs/** export-ignore linguist-vendored
+
+/package-lock.json export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore
+
+/extensions/css-parser-napi/dist/** linguist-vendored
+/extensions/css-parser-wasm/dist/** linguist-vendored
+
+/web-test-runner.config.js export-ignore
+/PORTING.md export-ignore
+
+/.github/** linguist-vendored export-ignore
+/package-lock.json export-ignore
+
+# do not replace lf by crlf
+*.css text
+*.json text
+*.css text
+*.js text
+*.ts text
+*.sh text
+text eol=lf

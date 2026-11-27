@@ -296,6 +296,51 @@ use TokenMap::*;
 /// value of a number: the longest prefix of the range that is a number, like `parseFloat()`. the prefix is copied to a
 /// stack buffer and parsed by the correctly rounded rust parser (same result as `parseFloat()`)
 pub fn parse_number(codes: &CodeUnits, start: usize, end: usize) -> f64 {
+    parse_short_number(codes, start, end).unwrap_or_else(|| parse_long_number(codes, start, end))
+}
+
+/// powers of ten represented exactly by a f64
+const POWERS_OF_TEN: [f64; 16] = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
+
+/// a number of 15 digits or less, without exponent: the digits are an integer represented exactly by a f64, divided by
+/// a power of ten represented exactly. the division is correctly rounded: the result is the result of `parseFloat`.
+/// `None` for the other numbers
+fn parse_short_number(codes: &CodeUnits, start: usize, end: usize) -> Option<f64> {
+    let mut i = start;
+    let mut code = codes.at(i);
+    let negative = code == 0x2d;
+    if negative || code == 0x2b {
+        i += 1;
+        code = codes.at(i);
+    }
+    let mut mantissa: u64 = 0;
+    let mut digits = 0usize;
+    let mut decimals = 0usize;
+    let mut dot = false;
+    while i < end {
+        if (0x30..=0x39).contains(&code) {
+            mantissa = mantissa * 10 + (code - 0x30) as u64;
+            digits += 1;
+            if dot {
+                decimals += 1;
+            }
+        } else if code == 0x2e && !dot {
+            dot = true;
+        } else {
+            break;
+        }
+        i += 1;
+        code = codes.at(i);
+    }
+    if digits == 0 || digits > 15 || (i < end && (code == 0x65 || code == 0x45)) {
+        return None;
+    }
+    let value = mantissa as f64 / POWERS_OF_TEN[decimals];
+    Some(if negative { -value } else { value })
+}
+
+/// see [`parse_number`]: the numbers that are not read by [`parse_short_number`]
+fn parse_long_number(codes: &CodeUnits, start: usize, end: usize) -> f64 {
     let mut buffer = [0u8; 128];
     let mut heap: Vec<u8> = Vec::new();
     let mut len = 0usize;
@@ -1572,3 +1617,42 @@ fn find_item(typ: u8, parse_info: &ParseInfo, start: usize, end: usize) -> i64 {
 
 #[allow(dead_code)]
 static _UNUSED: OnceLock<()> = OnceLock::new();
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// the numbers read by `parse_short_number` have the value read by `parse_long_number`
+    #[test]
+    fn short_numbers() {
+        let mut inputs: Vec<String> = [
+            "0", "-0", "+0", "1", "-1", "+1", "1.", "-1.", ".5", "-.5", "+.5", "0.1", "0.2", "0.3", "1.5", "12.345",
+            "123456789012345", "12345678901234.5", "0.000000000000001", "9.99999999999999", "33.333333333333",
+            "1e3", "1.e3", "1.5e-3", "1em", "10px", "1.2.3", ".", "-", "+-1", "007", "0.30000000000000004",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        // pseudo random numbers
+        let mut seed: u64 = 0x2545f4914f6cdd1d;
+        for _ in 0..20000 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            let digits = (seed % 15 + 1) as usize;
+            let mantissa = format!("{:015}", seed % 1_000_000_000_000_000);
+            let mantissa = &mantissa[15 - digits..];
+            let dot = (seed >> 20) as usize % (digits + 1);
+            let sign = ["", "-", "+"][(seed >> 40) as usize % 3];
+            inputs.push(format!("{}{}.{}", sign, &mantissa[..dot], &mantissa[dot..]));
+            inputs.push(format!("{}{}", sign, mantissa));
+        }
+        for input in inputs {
+            let codes = CodeUnits::Bytes(Rc::from(input.as_bytes()));
+            let long = parse_long_number(&codes, 0, input.len());
+            if let Some(short) = parse_short_number(&codes, 0, input.len()) {
+                assert!(short.to_bits() == long.to_bits(), "{}: {} != {}", input, short, long);
+            }
+        }
+    }
+}

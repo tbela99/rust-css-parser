@@ -16,7 +16,7 @@ use crate::ast::types::MergeRulesEnum;
 use crate::options::{ModuleOption, ModuleScoped, ParserOptions, RemoveDuplicateDeclarations, SourceMapOption};
 use crate::parser::input::CssInput;
 use crate::parser::parse::{
-    allocate_token, arena_capacity, drop_invalid_nodes, get_key_name, is_bad_token, is_definition_block, parse_node, parse_string,
+    allocate_token, allocate_whitespace, arena_capacity, drop_invalid_nodes, get_key_name, is_bad_token, is_definition_block, is_statement_end, parse_node, parse_string,
     recycle_statement_tokens, render_tokens, ParseResultStats,
 };
 use crate::parser::source::SourceFile;
@@ -108,7 +108,7 @@ fn with_defaults(options: ParserOptions) -> ParserOptions {
     // the fast mode settings (`fastModeOptions`), an option given explicitly takes precedence
     if o.fast_mode == Some(true) {
         o.minify.get_or_insert(false);
-        o.merge_rules.get_or_insert(MergeRulesEnum::Identical);
+        o.merge_rules.get_or_insert(MergeRulesEnum::None);
     }
     o.src.get_or_insert_with(String::new);
     o.sourcemap.get_or_insert(SourceMapOption::Off);
@@ -185,12 +185,30 @@ async fn do_parse_impl(tokenizer: Tokenizer, options: ParserOptions, arena: Opti
     arena.set_source_text(source_index as usize, tokenizer.codes().clone());
     let a = &*arena;
     let t = |x: u32| a.data_types.get(x);
+    // whitespace outside of parentheses, at the start of a statement or before ';', '{' and '}' is not significant: it
+    // is not allocated. the whitespace that follows a token is allocated when the next token is read
+    let mut whitespace: Option<(u32, u32)> = None;
     while tokenizer.typ != Some(EnumToken::EOF) {
         tokenizer.next();
-        let mut item = allocate_token(a, &mut tokenizer, source_index as i32);
         let mut item_type = tokenizer.typ.unwrap_or(0);
         stats.bytes_in = tokenizer.bytes_in.unwrap_or(0) as u64;
         stats.tokens_count += 1;
+        if parens_match == 0 {
+            if item_type == EnumToken::WhitespaceTokenType {
+                if !tokens.is_empty() {
+                    whitespace = Some((tokenizer.sta.unwrap_or(0) as u32, tokenizer.end.unwrap_or(0) as u32));
+                }
+                continue;
+            }
+            if let Some((start, end)) = whitespace.take() {
+                if !is_statement_end(item_type) {
+                    let ws = allocate_whitespace(a, source_index as u32, start, end);
+                    tokens.push(ws);
+                    statement.push(ws);
+                }
+            }
+        }
+        let mut item = allocate_token(a, &mut tokenizer, source_index as i32);
         if is_bad_token(item_type) {
             tokens.push(item);
             statement.push(item);

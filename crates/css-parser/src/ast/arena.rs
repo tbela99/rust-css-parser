@@ -594,6 +594,12 @@ impl Arena {
         self.current.get()
     }
 
+    /// approximate number of bytes held by the arena: the columns (62 bytes per node of the capacity) and the string
+    /// table
+    pub fn memory_size(&self) -> usize {
+        self.get_capacity() * 62 + self.strings().memory_size()
+    }
+
     pub fn get_string_count(&self) -> u32 {
         self.strings().count
     }

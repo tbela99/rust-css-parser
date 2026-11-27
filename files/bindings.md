@@ -45,10 +45,33 @@ $ npm run test:web    # css-parser-wasm in Chromium, Firefox and WebKit
 $ npm run test:rust   # cargo test --release --workspace
 ```
 
+## Coverage
+
+The Rust code is mostly tested by the specs, through the N-API addon. `scripts/coverage.sh` builds the addon with
+the coverage instrumentation of [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov), runs `cargo test` and
+the specs against it, and merges their profiles into one report:
+
+```shell
+$ rustup component add llvm-tools-preview --toolchain stable
+$ cargo install cargo-llvm-cov --locked
+
+$ npm run coverage        # summary by file in the terminal
+$ npm run coverage:html   # + target/coverage/html/index.html and target/coverage/coverage-summary.json
+```
+
+- The instrumented build is in `target/coverage`: the release build and `extensions/css-parser-napi/dist` are not
+  modified. The specs load the instrumented addon through the `coverage` condition of the root package.json.
+- Options of the script: `--html`, `--lcov` (`target/coverage/lcov.info`, for Codecov, Coveralls or an IDE),
+  `--json` (`target/coverage/coverage-summary.json`, the totals), `--fail-under-lines N`.
+- The WebAssembly extension and the binaries of the library (data generators) are not part of the report. Branch
+  coverage requires the nightly toolchain: the report has the lines, the functions and the regions.
+- The CI runs the script on every pull request: it fails below 85% of the lines, writes the totals to the summary of
+  the job and uploads the report (`rust-coverage` artifact).
+
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
     js["JavaScript API<br/>dist/node.js, dist/web.js"] -- "call: [method, ...arguments]" --> buffer[("exchange buffer")]
     buffer --> rust["Rust<br/>crates/css-parser/src/bindings/api.rs"]
     rust -- "callbacks: visitors, load(), filters" --> js
@@ -69,7 +92,8 @@ flowchart LR
   by Rust. The promises they return are awaited by JavaScript: `parse()` and `transform()` drive the Rust task until
   it completes.
 - **Arenas**: an arena created by Rust and returned twice is the same JavaScript object. The Rust arena is released when
-  the JavaScript object is garbage collected.
+  the JavaScript object is garbage collected. The N-API addon reports the memory of the arenas to V8
+  (`napi_adjust_external_memory`): V8 collects the results that are no longer referenced according to their size.
 - **Transferable arenas**: `AstArena.toTransferableArenaObject()` copies the columns into JavaScript buffers that can be
   transferred to a worker. An arena that uses JavaScript buffers copies them into Rust around the calls that receive
   it, until it grows.

@@ -78,6 +78,46 @@ pub fn js_parse_number(s: &str) -> f64 {
 
 /// `n.toFixed(digits)`
 pub fn to_fixed(n: f64, digits: usize) -> String {
+    to_fixed_short(n, digits).unwrap_or_else(|| to_fixed_exact(n, digits))
+}
+
+/// powers of ten represented exactly by a f64
+const POWERS_OF_TEN: [f64; 16] = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
+
+/// `n.toFixed(digits)` without the exact decimal expansion of `n`: `|n| * 10^digits` is rounded to the nearest integer
+/// when it is far enough from a tie for the error of the multiplication not to change the rounding. `None` for the
+/// other numbers: large numbers, many digits, ties
+fn to_fixed_short(n: f64, digits: usize) -> Option<String> {
+    if !n.is_finite() || digits >= POWERS_OF_TEN.len() {
+        return None;
+    }
+    let scaled = n.abs() * POWERS_OF_TEN[digits];
+    // the integers are exact below 2^53. the error of the multiplication is less than 2^-52 of the result
+    if scaled >= 4_503_599_627_370_496.0 {
+        return None;
+    }
+    let floor = scaled.floor();
+    let fraction = scaled - floor;
+    if (fraction - 0.5).abs() <= scaled * 1e-15 + 1e-15 {
+        return None;
+    }
+    let integer = if fraction > 0.5 { floor as u64 + 1 } else { floor as u64 };
+    let mut text = integer.to_string();
+    if digits > 0 {
+        if text.len() <= digits {
+            text.insert_str(0, &"0".repeat(digits + 1 - text.len()));
+        }
+        text.insert(text.len() - digits, '.');
+    }
+    // `(-0.0001).toFixed(2)` is "-0.00" in javascript
+    if n < 0.0 {
+        text.insert(0, '-');
+    }
+    Some(text)
+}
+
+/// see [`to_fixed`]: the exact decimal expansion of the number is rounded
+fn to_fixed_exact(n: f64, digits: usize) -> String {
     if !n.is_finite() {
         return js_number_to_string(n);
     }
@@ -122,6 +162,30 @@ pub fn num_to_str(n: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// the numbers formatted by `to_fixed_short` have the text of `to_fixed_exact`
+    #[test]
+    fn short_to_fixed() {
+        let mut values: Vec<f64> = vec![0.0, -0.0, 0.5, 1.5, 2.5, -2.5, 0.125, 1.005, 1.045, -0.0001, 123.456, 1e10, 359.99999, 0.1 + 0.2];
+        let mut seed: u64 = 0x9e3779b97f4a7c15;
+        for _ in 0..50000 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            let magnitude = 10f64.powi((seed % 12) as i32 - 5);
+            let value = ((seed >> 12) as f64 / (1u64 << 52) as f64 - 0.5) * magnitude;
+            values.push(value);
+            // decimal values: ties and near ties
+            values.push(((seed >> 20) % 100000) as f64 / 1000.0);
+        }
+        for value in values {
+            for digits in 0..8 {
+                if let Some(short) = to_fixed_short(value, digits) {
+                    assert_eq!(short, to_fixed_exact(value, digits), "{}.toFixed({})", value, digits);
+                }
+            }
+        }
+    }
 
     #[test]
     fn number_to_string() {

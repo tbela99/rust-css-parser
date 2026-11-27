@@ -119,7 +119,8 @@ export function structuredFields(typ) {
  * state of an arena wrapper: rust handle, cached column views, javascript columns (transfer)
  */
 const states = new WeakMap();
-// the wrappers by handle are `runtime.arenas`: an arena returned twice by rust is the same object
+// the wrappers by handle are `runtime.arenas`: an arena returned twice by rust is the same object. the rust arena is
+// released when its wrapper is garbage collected
 const registry = new FinalizationRegistry(({ runtime, handle }) => {
     runtime.arenas.delete(handle);
 
@@ -617,11 +618,14 @@ for (const method of [
     "getRight",
     "setOp",
     "getOp",
+    "setOp2",
+    "getOp2",
     "setSpan",
     "copySpan",
     "getSourceId",
     "getSpanStart",
     "getSpanEnd",
+    "setSpandStart",
     "setSpanEnd",
     "resolveString",
     "detach",
